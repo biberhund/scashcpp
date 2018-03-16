@@ -549,7 +549,6 @@ int64 CTransaction::GetMinFee(unsigned int nBlockSize, bool fAllowFree,
     if (messageBytes > 0)
     {
         nMinFee += messageBytes * SendMessageCostPerChar;
-        nMinFee += 1000;
     }
 
     // Raise the price as the block approaches full

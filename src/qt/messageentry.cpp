@@ -45,9 +45,12 @@ int MessageEntry::getTextCharactersCount()
 
 double MessageEntry::getFeeEstimation()
 {
-    return (double)(getTextCharactersCount() / 100) *
-            (double)SendMessageCostPerChar /
+    double ret = (double)(getTextCharactersCount() / 100) *
+            (double)(2 * SendMessageCostPerChar) /
             (double)COIN * 100;
+    if (getTextCharactersCount() > 0)
+        ret += (double)1 / (double)1000;
+    return ret;
 }
 
 MessageEntry::~MessageEntry()

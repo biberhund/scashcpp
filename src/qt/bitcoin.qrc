@@ -56,7 +56,6 @@
         <file alias="Scash64png">res/icons/Scash-64.png</file>
         <file alias="Scash64ico">res/icons/Scash-64.ico</file>
         <file alias="vault">res/icons/vault.png</file>
-        <file alias="vault32">res/icons/vault32.png</file>
     </qresource>
     <qresource prefix="/images">
         <file alias="about">res/images/about.png</file>
