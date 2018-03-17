@@ -45,11 +45,10 @@ int MessageEntry::getTextCharactersCount()
 
 double MessageEntry::getFeeEstimation()
 {
-    double ret = (double)(getTextCharactersCount() / 100) *
-            (double)(2 * SendMessageCostPerChar) /
-            (double)COIN * 100;
-    if (getTextCharactersCount() > 0)
-        ret += (double)1 / (double)1000;
+    // 1 + SendMessageCostPerChar: because you should pay for nBytes too.
+    double ret = (double)(getTextCharactersCount()) *
+            (double)(1 + SendMessageCostPerChar) /
+            (double)COIN;
     return ret;
 }
 
@@ -71,9 +70,16 @@ void MessageEntry::on_MessageEditor_textChanged()
     {
         if (chars <= SendMessageMaxChars)
         {
+            std::string fee;
+            {
+                std::ostringstream temp;
+                temp << std::fixed << std::setprecision(6) << getFeeEstimation();
+                fee = temp.str();
+            }
+
             ui->MessageDetailsLabel->setText(
                         tr("Message length: %1 chars; additional fee estimate is %2 SCS")
-                        .arg(chars).arg(getFeeEstimation()));
+                        .arg(chars).arg(fee.c_str()));
         }
         else
         {

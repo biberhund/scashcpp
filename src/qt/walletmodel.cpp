@@ -214,7 +214,8 @@ WalletModel::SendCoinsReturn WalletModel::sendCoins(
         CReserveKey keyChange(wallet);
         int64 nFeeRequired = 0;
         bool fCreated = wallet->CreateTransaction(vecSend, wtx, keyChange,
-                                                  nFeeRequired, coinControl, messageText.length());
+                                                  nFeeRequired, coinControl, "",
+                                                  messageText.length());
 
         if (messageText.length() > 0)
         {
