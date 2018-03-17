@@ -162,7 +162,12 @@ void VaultDialog::on_selectButton_clicked()
 void VaultDialog::on_infoButton_clicked()
 {
     QMessageBox::information(this, tr("Scash Vault"),
-        tr("TODO"),
+        tr("HOW IT WORKS\n"
+           "You can publish a hash of any of your documents in the SpeedCash blockchain. The content of the document itself is not published, allowing you to preserve its privacy. Since all blocks in the SpeedCash network are marked with a timestamp, the time identifier impossible to falsify, such publication proves that you owned the document at the specified time and can be a legal proof of the ownership. \n\n"
+           "HOW TO USE\n"
+           "Select the required document and carefully fill in the copyright information. As we do not check this information, any errors are responsibility of the publisher. In addition, it is required to have at least 10 SCS on the wallet balance, in order to protect the network from possible spam. \n\n"
+           "PUBLICATION FEE\n"
+           "The standard transaction commission + the standard message commission is charged. In ordinary cases this is from 0.001 SCS to up to 0.002 SCS."),
         QMessageBox::Ok, QMessageBox::Ok);
 }
 
