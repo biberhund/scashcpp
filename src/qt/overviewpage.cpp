@@ -15,6 +15,7 @@
 #include <QPainter>
 
 #include <boost/filesystem.hpp>
+#include <boost/filesystem/fstream.hpp>
 
 #define DECORATION_SIZE 64
 #define NUM_ITEMS 6

@@ -1358,11 +1358,11 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64> >& vecSend, CW
                         + messageBytes * SendMessageCostPerChar
                         + (messageBytes > 0 ? 1000 : 0);
 
-                printf("nPayFee: %" PRIszu "\n", nPayFee);
+                printf("nPayFee: %" PRI64d "\n", nPayFee);
 
                 int64 nMinFee = wtxNew.GetMinFee(1, false, GMF_SEND, nBytes, messageBytes);
 
-                printf("nMinFee: %" PRIszu "\n", nMinFee);
+                printf("nMinFee: %" PRI64d "\n", nMinFee);
 
                 if (nFeeRet < max(nPayFee, nMinFee))
                 {
@@ -1370,7 +1370,7 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64> >& vecSend, CW
                     continue;
                 }
 
-                printf("nFeeRet: %" PRIszu "\n", nFeeRet);
+                printf("nFeeRet: %" PRI64d "\n", nFeeRet);
 
                 // Fill vtxPrev by copying from previous transactions vtxPrev
                 wtxNew.AddSupportingTransactions(txdb);
