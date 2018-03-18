@@ -120,7 +120,9 @@ QString getHash(QString filename)
         }
         SHA512_Final(c, &mdContext);
 
-        return (hexStr(c, SHA512_DIGEST_LENGTH).c_str());
+        std::string temp = hexStr(c, SHA512_DIGEST_LENGTH);
+        if (temp.length() > 64) temp.insert(temp.begin() + 64, ' ');
+        return (temp.c_str());
     }
     catch (std::exception &ex)
     {
@@ -167,7 +169,7 @@ void VaultDialog::on_infoButton_clicked()
            "HOW TO USE\n"
            "Select the required document and carefully fill in the copyright information. As we do not check this information, any errors are responsibility of the publisher. In addition, it is required to have at least 10 SCS on the wallet balance, in order to protect the network from possible spam. \n\n"
            "PUBLICATION FEE\n"
-           "The standard transaction commission + the standard message commission is charged. In ordinary cases this is from 0.001 SCS to up to 0.002 SCS."),
+           "Only the standard transaction fee + the standard message fee is charged. In ordinary cases this is from 0.001 SCS to up to 0.002 SCS."),
         QMessageBox::Ok, QMessageBox::Ok);
 }
 

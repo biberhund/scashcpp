@@ -95,8 +95,8 @@ BitcoinGUI::BitcoinGUI(QWidget *parent):
     resize(850, 550);
     setWindowTitle(tr("Scash") + " - " + tr("Wallet"));
 #ifndef Q_OS_MAC
-    qApp->setWindowIcon(QIcon(":/icons/client_ico_new"));
-    setWindowIcon(QIcon(":/icons/client_ico_new"));
+    qApp->setWindowIcon(QIcon(":/icons/client_icon"));
+    setWindowIcon(QIcon(":/icons/client_icon"));
 #else
     setUnifiedTitleAndToolBarOnMac(true);
     QApplication::setAttribute(Qt::AA_DontShowIconsInMenus);
@@ -296,7 +296,7 @@ void BitcoinGUI::createActions()
     quitAction->setToolTip(tr("Quit application"));
     quitAction->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_Q));
     quitAction->setMenuRole(QAction::QuitRole);
-    aboutAction = new QAction(QIcon(":/icons/bitcoin"), tr("&About Scash"), this);
+    aboutAction = new QAction(QIcon(":/icons/scash16"), tr("&About Scash"), this);
     aboutAction->setToolTip(tr("Show information about Scash"));
 
 #ifndef Q_OS_MAC
@@ -320,7 +320,7 @@ void BitcoinGUI::createActions()
 #endif
     optionsAction->setToolTip(tr("Modify configuration options for Scash"));
 
-    toggleHideAction = new QAction(QIcon(":/icons/bitcoin"), tr("&Show / Hide"), this);
+    toggleHideAction = new QAction(QIcon(":/icons/scash16"), tr("&Show / Hide"), this);
     encryptWalletAction = new QAction(QIcon(":/icons/lock_closed"), tr("&Encrypt Wallet..."), this);
     encryptWalletAction->setToolTip(tr("Encrypt or decrypt wallet"));
     encryptWalletAction->setCheckable(true);
@@ -478,7 +478,7 @@ void BitcoinGUI::createTrayIcon()
     trayIconMenu = new QMenu(this);
     trayIcon->setContextMenu(trayIconMenu);
     trayIcon->setToolTip(tr("Scash client"));
-    trayIcon->setIcon(QIcon(":/icons/client_ico_new"));
+    trayIcon->setIcon(QIcon(":/icons/client_icon"));
     connect(trayIcon, SIGNAL(activated(QSystemTrayIcon::ActivationReason)),
             this, SLOT(trayIconActivated(QSystemTrayIcon::ActivationReason)));
     trayIcon->show();

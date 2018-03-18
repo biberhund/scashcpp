@@ -97,7 +97,7 @@
              </font>
             </property>
             <property name="styleSheet">
-             <string notr="true">color: rgb(8, 103, 255)</string>
+             <string notr="true">color: rgb(40, 40, 220)</string>
             </property>
             <property name="text">
              <string>Balance:</string>
@@ -120,7 +120,7 @@
              <string>Your current balance</string>
             </property>
             <property name="styleSheet">
-             <string notr="true">color: rgb(8, 103, 255)</string>
+             <string notr="true">color: rgb(40, 40, 220)</string>
             </property>
             <property name="text">
              <string notr="true">0 SCS</string>
@@ -138,7 +138,7 @@
              </font>
             </property>
             <property name="styleSheet">
-             <string notr="true">color: rgb(8, 103, 255)</string>
+             <string notr="true">color: rgb(40, 40, 220)</string>
             </property>
             <property name="text">
              <string>Stake:</string>
@@ -161,7 +161,7 @@
              <string>Total of coins that was staked, and do not yet count toward the current balance</string>
             </property>
             <property name="styleSheet">
-             <string notr="true">color: rgb(8, 103, 255)</string>
+             <string notr="true">color: rgb(40, 40, 220)</string>
             </property>
             <property name="text">
              <string notr="true">0 SCS</string>
@@ -179,7 +179,7 @@
              </font>
             </property>
             <property name="styleSheet">
-             <string notr="true">color: rgb(203, 2, 156)</string>
+             <string notr="true">color: rgb(80, 80, 80)</string>
             </property>
             <property name="text">
              <string>Unconfirmed:</string>
@@ -202,7 +202,7 @@
              <string>Total of transactions that have yet to be confirmed, and do not yet count toward the current balance</string>
             </property>
             <property name="styleSheet">
-             <string notr="true">color: rgb(203, 2, 156)</string>
+             <string notr="true">color: rgb(80, 80, 80)</string>
             </property>
             <property name="text">
              <string notr="true">0 SCS</string>
@@ -220,7 +220,7 @@
              </font>
             </property>
             <property name="styleSheet">
-             <string notr="true">color: rgb(203, 2, 156)</string>
+             <string notr="true">color: rgb(80, 80, 80)</string>
             </property>
             <property name="text">
              <string>Immature:</string>
@@ -240,7 +240,7 @@
              <string>Mined balance that has not yet matured</string>
             </property>
             <property name="styleSheet">
-             <string notr="true">color: rgb(203, 2, 156)</string>
+             <string notr="true">color: rgb(80, 80, 80)</string>
             </property>
             <property name="text">
              <string notr="true">0 SCS</string>
@@ -293,7 +293,7 @@
              </font>
             </property>
             <property name="text">
-             <string>Burst</string>
+             <string>Staking</string>
             </property>
            </widget>
           </item>
@@ -351,6 +351,12 @@
                  <property name="enabled">
                   <bool>false</bool>
                  </property>
+                 <property name="minimumSize">
+                  <size>
+                   <width>84</width>
+                   <height>24</height>
+                  </size>
+                 </property>
                  <property name="toolTip">
                   <string>Make confirmations faster!</string>
                  </property>
@@ -372,8 +378,20 @@ background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
                  <property name="enabled">
                   <bool>false</bool>
                  </property>
+                 <property name="minimumSize">
+                  <size>
+                   <width>0</width>
+                   <height>24</height>
+                  </size>
+                 </property>
                  <property name="value">
                   <number>0</number>
+                 </property>
+                 <property name="alignment">
+                  <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+                 </property>
+                 <property name="textVisible">
+                  <bool>false</bool>
                  </property>
                 </widget>
                </item>

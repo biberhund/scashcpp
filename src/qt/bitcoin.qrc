@@ -1,8 +1,7 @@
 <RCC>
     <qresource prefix="/icons">
-        <file alias="bitcoin">res/icons/Scash-128.png</file>
-        <file alias="client_ico">res/icons/Scash-32.ico</file>
-        <file alias="client_ico_new">res/icons/Scash_client_new.ico</file>
+        <file alias="scash16">res/icons/Scash-16.png</file>
+        <file alias="client_icon">res/icons/Scash-32.ico</file>
         <file alias="address-book">res/icons/address-book.png</file>
         <file alias="quit">res/icons/quit.png</file>
         <file alias="send">res/icons/send.png</file>
@@ -26,8 +25,6 @@
         <file alias="editpaste">res/icons/editpaste.png</file>
         <file alias="editcopy">res/icons/editcopy.png</file>
         <file alias="add">res/icons/add.png</file>
-        <file alias="bitcoin_testnet">res/icons/Scash-128.png</file>
-        <file alias="toolbar_testnet">res/icons/Scash-16.png</file>
         <file alias="edit">res/icons/edit.png</file>
         <file alias="history">res/icons/history.png</file>
         <file alias="overview">res/icons/overview.png</file>
@@ -53,14 +50,11 @@
         <file alias="qrcode">res/icons/qrcode.png</file>
         <file alias="debugwindow">res/icons/debugwindow.png</file>
         <file alias="transaction_conflicted">res/icons/transaction_conflicted.png</file>
-        <file alias="Scash64png">res/icons/Scash-64.png</file>
-        <file alias="Scash64ico">res/icons/Scash-64.ico</file>
-        <file alias="vault">res/icons/vault.png</file>
+        <file alias="vault">res/icons/vault101.png</file>
     </qresource>
     <qresource prefix="/images">
         <file alias="about">res/images/about.png</file>
         <file alias="splash">res/images/splash.png</file>
-        <file alias="backg">res/images/wallet.png</file>        
     </qresource>
     <qresource prefix="/movies">
         <file alias="update_spinner">res/movies/update_spinner.mng</file>
