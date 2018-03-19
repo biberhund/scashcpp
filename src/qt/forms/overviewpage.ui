@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>573</width>
-    <height>382</height>
+    <width>744</width>
+    <height>388</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -357,6 +357,12 @@
                    <height>24</height>
                   </size>
                  </property>
+                 <property name="maximumSize">
+                  <size>
+                   <width>110</width>
+                   <height>16777215</height>
+                  </size>
+                 </property>
                  <property name="toolTip">
                   <string>Make confirmations faster!</string>
                  </property>
@@ -382,6 +388,12 @@ background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
                   <size>
                    <width>0</width>
                    <height>24</height>
+                  </size>
+                 </property>
+                 <property name="maximumSize">
+                  <size>
+                   <width>290</width>
+                   <height>16777215</height>
                   </size>
                  </property>
                  <property name="value">

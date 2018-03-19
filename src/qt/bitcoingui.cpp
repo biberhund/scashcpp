@@ -478,7 +478,11 @@ void BitcoinGUI::createTrayIcon()
     trayIconMenu = new QMenu(this);
     trayIcon->setContextMenu(trayIconMenu);
     trayIcon->setToolTip(tr("Scash client"));
+#ifdef LINUX
+    trayIcon->setIcon(QIcon(":/icons/scash32"));
+#else
     trayIcon->setIcon(QIcon(":/icons/client_icon"));
+#endif
     connect(trayIcon, SIGNAL(activated(QSystemTrayIcon::ActivationReason)),
             this, SLOT(trayIconActivated(QSystemTrayIcon::ActivationReason)));
     trayIcon->show();

@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>850</width>
+    <width>981</width>
     <height>400</height>
    </rect>
   </property>
@@ -646,8 +646,8 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>830</width>
-        <height>172</height>
+        <width>961</width>
+        <height>152</height>
        </rect>
       </property>
       <layout class="QVBoxLayout" name="verticalLayout_2">
@@ -744,7 +744,7 @@
         <string>Show or hide additional transaction params</string>
        </property>
        <property name="text">
-        <string>Toggle &amp;Coin Control</string>
+        <string>&amp;Coin Control</string>
        </property>
        <property name="icon">
         <iconset resource="../bitcoin.qrc">
