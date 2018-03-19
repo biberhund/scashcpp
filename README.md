@@ -2,7 +2,7 @@ Scash (SCS) Release v1.2.3
 
 -----------------------------
 Scash is a peer-to-peer Proof of Stake Velocity digital currency with an initial Proof of Work mining
-distribution period lasting up to 476,918 coins mined (estimated at height 300 000). After the initial mining distribution 
+distribution period lasting up to 476,918 coins mined. After the initial mining distribution 
 period is over, the network will transition into an energy efficient Proof of Stake Velocity algorithm which will
 reward balance holders on the network a 8% staking annual interest.
 
@@ -18,6 +18,7 @@ Initial PoW block reward: 8 SCS -> 2 SCS
 PoS annual rate: 8%
 
 PoS minimum stake coin maturity: 4 hours
+
 PoS maximum stake reserve time: 1 hour
 
 PoW Block time: 60 to 90 seconds
