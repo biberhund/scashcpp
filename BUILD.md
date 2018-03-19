@@ -1,4 +1,4 @@
-UNIX BUILD NOTES
+LINUX BUILD NOTES
 ====================
 Some notes on how to build Scash in Linux/Unix.
 
@@ -61,7 +61,7 @@ You can add the repository and install using the following commands:
     sudo apt-get install libdb4.8-dev libdb4.8++-dev
 
 Ubuntu and Debian have their own libdb-dev and libdb++-dev packages, but these will install
-BerkeleyDB 5.1 or later, which break binary wallet compatibility with the distributed executables which
+BerkeleyDB 5.3 or later, which break binary wallet compatibility with the distributed executables which
 are based on BerkeleyDB 4.8. If you do not care about wallet compatibility,
 pass `--with-incompatible-bdb` to configure.
 
