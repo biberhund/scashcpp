@@ -69,42 +69,17 @@ Dependencies for the GUI: Ubuntu & Debian
 -----------------------------------------
 
 If you want to build Scash-qt, make sure that the required packages for Qt development
-are installed. Either Qt 5 or Qt 4 are necessary to build the GUI.
-If both Qt 4 and Qt 5 are installed, Qt 5 will be used. Pass `--with-gui=qt4` to configure to choose Qt4.
+are installed. Qt 5 is necessary to build the GUI.
+If both Qt 4 and Qt 5 are installed, Qt 5 will be used (if not, pass `--with-gui=qt5` to configure to choose Qt5).
 To build without GUI pass `--without-gui`.
 
-To build with Qt 5 (recommended) you need the following:
+To build with Qt 5 (recommended version is Qt 5.5.0 on Linux and MacOS) you need the following:
 
     sudo apt-get install libqt5gui5 libqt5core5a libqt5dbus5 qttools5-dev qttools5-dev-tools 
-
-Alternatively, to build with Qt 4 you need the following:
-
-    sudo apt-get install libqt4-dev libprotobuf-dev
 
 Once these are installed, they will be found by configure and a scash-qt executable will be
 built by default.
 
-Troubleshooting
------
-
-In case of getting this message while UI compilation:
-
-    fatal error: QMainWindow: No such file or directory
-
-Just use 
-
-    qmake-qt4
-    
-Instead of qmake.
-
-
-In case of getting lots of C++ related errors like this:
-
-    error: expected primary-expression before ‘const’
-
-Open Makefile and add -std=c++11 to CXXFLAGS. This line should be like:
-
-    CXXFLAGS  = -std=c++11 -m64 -pipe ...
 
 Notes
 -----
