@@ -37,7 +37,7 @@ And finally run build process itself:
 
     make
 
-====================
+-----------------------------
 
 There is also possible to build project manually on target system (Win 10). 
 Tested configuration is VS2015 + Qt5.10.0 + OpenSSL 1.0.1u + boost 1.60.0 + libbdb-4.8.30
