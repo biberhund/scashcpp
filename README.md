@@ -1,4 +1,4 @@
-Scash (SCS) Release v. 1.2.2
+Scash (SCS) Release v1.2.3
 
 -----------------------------
 Scash is a peer-to-peer Proof of Stake Velocity digital currency with an initial Proof of Work mining
@@ -13,15 +13,16 @@ Total coins: 476,918 SCS (PoW) + annual 8% PoS intereset
 
 Algorithm: x13 + mSHA3
 
-Initial PoW block reward: 8 SCS
+Initial PoW block reward: 8 SCS -> 2 SCS
 
 PoS annual rate: 8%
 
-PoS minimum stake age: 1 to 4 hours
+PoS minimum stake coin maturity: 4 hours
+PoS maximum stake reserve time: 1 hour
 
 PoW Block time: 60 to 90 seconds
 
-PoS blocks rate: 66%
+PoS blocks target rate: 66%
 
 Mixed PoW/PoS block time: 20 to 30 seconds
 
@@ -31,6 +32,6 @@ Required TX confirmations: 3 to 7 depending on TX amount
 
 Mined blocks confirmations: 60
 
-Default connection port: 35334
+Default P2P connection port: 35334
 
 Default RPC port: 35333
