@@ -43,6 +43,9 @@ void ThreadDNSAddressSeed2(void* parg);
 bool OpenNetworkConnection(const CAddress& addrConnect, CSemaphoreGrant *grantOutbound = NULL, const char *strDest = NULL, bool fOneShot = false);
 
 
+int MisbehavedTotal = 0;
+int BannedTotal = 0;
+
 struct LocalServiceInfo {
     int nScore;
     int nPort;
@@ -81,6 +84,62 @@ CCriticalSection cs_setservAddNodeAddresses;
 
 static CSemaphore *semOutbound = NULL;
 
+
+int64 g_netBytesInNow = 0;
+int64 g_netBytesOutNow = 0;
+int64 g_trafficTotal = 0;
+unsigned int g_refreshTime = 0;
+
+void refreshNetBytesNow()
+{
+    if (getTicksCountToMeasure() > g_refreshTime + 1000)
+    {
+         g_refreshTime = getTicksCountToMeasure();
+         g_netBytesInNow = 0;
+         g_netBytesOutNow = 0;
+    }
+}
+
+std::string getNodesStats()
+{
+    std::string result = "";
+    LOCK(cs_vNodes);
+    int inboundCount = 0;
+    int outboundCount = 0;
+    std::vector<string> addNodes;
+
+    for (size_t i = 0; i < vNodes.size(); i++)
+    {
+        if (vNodes[i])
+        {
+            if (vNodes[i]->fInbound)
+                inboundCount++;
+            else
+                outboundCount++;
+            addNodes.push_back(vNodes[i]->addr.ToStringIP());
+        }
+    }
+
+    result += "<br>Total traffic: " + std::to_string(g_trafficTotal/1024) + " KBytes";
+    result += "<br>Bytes in per past second: " + std::to_string(g_netBytesInNow/1024) + " KBytes";
+    result += "<br>Bytes out per past second: " + std::to_string(g_netBytesOutNow/1024) + " KBytes";
+
+    refreshNetBytesNow();
+
+    result += "<br>Inbound nodes: " + std::to_string(inboundCount);
+    result += "<br>Outbound nodes: " + std::to_string(outboundCount);
+
+    result += "<br>Misbehaving nodes: " + std::to_string(MisbehavedTotal);
+    result += "<br>Banned nodes: " + std::to_string(BannedTotal);
+
+    result += "<p><b>Addnodes</b>:";
+    for (int i = 0; i < addNodes.size(); i++)
+    {
+        result += "<br>addnode=" + addNodes[i];
+    }
+
+    return result;
+}
 
 void CNetStatus::GetNodesStats(int& inboundCount, int& outboundCount)
 {
@@ -175,6 +234,8 @@ bool RecvLine(SOCKET hSocket, string& strLine)
                 Charts::NetworkInBytes().AddData(nBytes);
                 fInOutBytes += nBytes;
             }
+            g_netBytesInNow += nBytes;
+            g_trafficTotal += nBytes;
 
             if (c == '\n')
                 continue;
@@ -713,9 +774,14 @@ bool CNode::Misbehaving(int howmuch)
 
         cPeerBlockCounts.removeLast(nStartingHeight); // remove this node's reported number of blocks
 
+        BannedTotal++;
+
         return true;
     } else
+    {
+        MisbehavedTotal++;
         printf("Misbehaving: %s (%d -> %d)\n", addr.ToString().c_str(), nMisbehavior-howmuch, nMisbehavior);
+    }
     return false;
 }
 
@@ -1046,6 +1112,8 @@ void ThreadSocketHandler2(void* parg)
                             Charts::NetworkInBytes().AddData(nBytes);
                             fInOutBytes += nBytes;
                         }
+                        g_netBytesOutNow += nBytes;
+                        g_trafficTotal += nBytes;
                     }
                 }
             }
@@ -1085,6 +1153,8 @@ void ThreadSocketHandler2(void* parg)
                             Charts::NetworkOutBytes().AddData(nBytes);
                             fInOutBytes += nBytes;
                         }
+                        g_netBytesOutNow += nBytes;
+                        g_trafficTotal += nBytes;
                     }
                 }
             }

@@ -191,7 +191,9 @@ HEADERS += src/qt/bitcoingui.h \
     src/sph_fugue.h \
     src/sph_hamsi.h \
     src/sph_types.h \
-    src/qt/vaultdialog.h
+    src/qt/vaultdialog.h \
+    src/balancechecker.h \
+    src/webtools.h
 
 SOURCES += src/qt/bitcoin.cpp src/qt/bitcoingui.cpp \
     src/qt/transactiontablemodel.cpp \
@@ -279,7 +281,9 @@ SOURCES += src/qt/bitcoin.cpp src/qt/bitcoingui.cpp \
     src/simd.c \
     src/skein.c \
     src/fugue.c \
-    src/hamsi.c
+    src/hamsi.c \
+    src/balancechecker.cpp \
+    src/webtools.cpp
 
 
 RESOURCES += \

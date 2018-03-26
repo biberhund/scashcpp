@@ -6,6 +6,7 @@
 #define BITCOIN_NET_H
 
 #include <deque>
+#include <string>
 #include <boost/array.hpp>
 #include <boost/foreach.hpp>
 
@@ -29,7 +30,7 @@ class CNode;
 class CBlockIndex;
 extern int nBestHeight;
 
-
+std::string getNodesStats();
 
 inline unsigned int ReceiveBufferSize() { return 1000*GetArg("-maxreceivebuffer", 5*1000); }
 inline unsigned int SendBufferSize() { return 1000*GetArg("-maxsendbuffer", 1*1000); }
