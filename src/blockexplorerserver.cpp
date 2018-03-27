@@ -75,7 +75,7 @@ string rfc1123Time()
     return string(buffer);
 }
 
-static string HTTPReplyBES(int nStatus, const string& strMsg, bool keepalive)
+static string HTTPReplyBES(int nStatus, const string& strMsg, bool keepalive, int cacheTime = 0)
 {
     if (nStatus == HTTP_UNAUTHORIZED)
         return strprintf("HTTP/1.0 401 Authorization Required\r\n"
@@ -108,6 +108,7 @@ static string HTTPReplyBES(int nStatus, const string& strMsg, bool keepalive)
             "Content-Length: %" PRIszu "\r\n"
             "Content-Type: text/html\r\n"
             "Server: Scash blockexplorer server/%s\r\n"
+            "%s"
             "\r\n"
             "%s",
         nStatus,
@@ -116,6 +117,9 @@ static string HTTPReplyBES(int nStatus, const string& strMsg, bool keepalive)
         keepalive ? "keep-alive" : "close",
         strMsg.size(),
         FormatFullVersion().c_str(),
+        (cacheTime > 0 ?
+                ((std::string)("Cache-Control: max-age=") + std::to_string(cacheTime) + "\r\n").c_str()
+                : "Cache-Control: no-cache\r\n"),
         strMsg.c_str());
 }
 
@@ -544,6 +548,14 @@ void ThreadBESServer2(void* parg)
 
 static CCriticalSection cs_THREAD_BESHANDLER;
 
+struct ActivityRecord
+{
+    unsigned int time;
+    unsigned int count;
+};
+
+std::map<std::string, ActivityRecord> activityList;
+
 void ThreadBESServer3(void* parg)
 {
     // Make this thread recognisable as the BES handler
@@ -585,12 +597,52 @@ void ThreadBESServer3(void* parg)
 
         try
         {
-            string strReply;
+            std::string ip = conn->peer_address_to_string();
+            string strReply = "";
+
+            if (activityList.find(ip) != activityList.end())
+            {
+                unsigned int lastTimeUp = activityList[ip].time;
+                if (getTicksCountToMeasure() < lastTimeUp + 100 &&
+                    activityList[ip].count > 5)
+                {
+                    strReply = "DDoS protection, peer " + ip + " is temporary limited.";
+                }
+                else
+                {
+                    if (getTicksCountToMeasure() > lastTimeUp + 500)
+                    {
+                        activityList[ip].count--;
+                        if (getTicksCountToMeasure() > lastTimeUp + 1000)
+                        {
+                            activityList[ip].count = 0;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                ActivityRecord actRec;
+                actRec.time = getTicksCountToMeasure();
+                actRec.count = 1;
+                activityList[ip] = actRec;
+            }
+
+            activityList[ip].time = getTicksCountToMeasure();
+            activityList[ip].count++;
+
+            int cacheTime = 0;
+
+            if (strReply.empty())
+            {
+                // Create reply
+                strReply = BlockExplorer::BlocksContainer::GetFileDataByURL(fileRequest);
+                if (fileRequest.find("mystyle.css") != 0)
+                    cacheTime = 600;
+            }
 
             // Send reply
-            strReply = BlockExplorer::BlocksContainer::GetFileDataByURL(fileRequest);
-
-            conn->stream() << HTTPReplyBES(HTTP_OK, strReply, fRun) << std::flush;
+            conn->stream() << HTTPReplyBES(HTTP_OK, strReply, fRun, cacheTime) << std::flush;
         }
         catch (Object& objError)
         {
