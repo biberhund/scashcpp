@@ -428,6 +428,9 @@ bool SoftSetBoolArg(const std::string& strArg, bool fValue);
 // all & to &amp; < to &lt; > to &gt; remove all outstandings
 std::string simpleHTMLSafeDisplayFilter(const std::string& source);
 
+// reverse the simpleHTMLSafeDisplayFilter
+std::string simpleHTMLSafeDisplayUnFilter(const std::string& source);
+
 
 template<typename T1>
 inline uint256 Hash(const T1 pbegin, const T1 pend)

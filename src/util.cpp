@@ -1376,3 +1376,18 @@ std::string simpleHTMLSafeDisplayFilter(const std::string& source)
     return result;
 }
 
+
+std::string simpleHTMLSafeDisplayUnFilter(const std::string& source)
+{
+    std::string result = source;
+    if (!source.empty())
+    {
+        boost::replace_all(result, "&amp;", "&");
+        boost::replace_all(result, "&lt;", "<");
+        boost::replace_all(result, "&gt;", ">");
+        boost::replace_all(result, "<br>", "\n");
+    }
+    return result;
+}
+
+
