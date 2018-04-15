@@ -22,13 +22,13 @@ exports.env = "development";
 exports.appHost = "localhost";
 
 // The app title, visible in browser window
-exports.appTitle = "YourCoin App";
+exports.appTitle = "SpeedCash";
 
 // The app slogan
-exports.appSlogan = "Explore YourCoin App!";
+exports.appSlogan = "Explore SpeedCash!";
 
 // The app description
-exports.appDescription = "YourCoin App description goes here.";
+exports.appDescription = "SpeedCash - Fast, Secure, Private and Decentralized.";
 
 // The copyright for the footer
 exports.copyRight = "Copyright (c) " + moment().utc().format("YYYY") + ", The " + this.appTitle + " developers. All rights reserved.";
@@ -43,7 +43,7 @@ exports.icon = "images/Icon.png";
 exports.favicon = "./public/wallet/favicon.ico";
 
 // Coin name / page heading
-exports.coinName = "YourCoin";
+exports.coinName = "SpeedCash";
 
 // Coin symbol, e.g. BTC, VRC, SSH, HCN, ...
 exports.coinSymbol = "SSH";
