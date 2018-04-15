@@ -7,9 +7,12 @@
 #include "sync.h"
 #include "blockexplorerstyle.h"
 #include "blockexplorerserver.h"
+#include "balancechecker.h"
 #include "main.h"
 #include "base58.h"
 #include "db.h"
+
+#include "webtools.h"
 
 #include <map>
 #include <boost/filesystem.hpp>
@@ -60,6 +63,8 @@ struct BlockDataInfo
 
 static std::vector<BlockDataInfo> g_latestBlocksAdded;
 
+std::vector<std::pair<int64,std::string>> g_richlist;
+
 static const int MaxMessagesShow = 30;
 struct MessageInfo
 {
@@ -73,50 +78,374 @@ struct MessageInfo
 
 static std::vector<MessageInfo> g_messages;
 
-std::string safeEncodeFileNameWithoutExtension(const std::string& name)
-{
-    std::string result = "";
 
-    for (size_t u = 0; u < name.length(); u++)
+struct VaultDocumentInfo
+{
+    std::string blockId;
+    std::string from;
+    std::string to;
+    std::string msgTime;
+    std::string hash;
+    std::string name;
+    std::string version;
+    std::string author;
+    std::string comment;
+
+    std::string toStringDump()
     {
-        if (isalnum(name[u]))
-            result += name[u];
+        return blockId + from + to + msgTime + hash + name + version + author + comment;
+    }
+};
+
+std::vector<VaultDocumentInfo> g_vaultDocs;
+static CCriticalSection g_cs_valut;
+
+typedef std::vector<std::pair<std::string, std::string>> TParsedData;
+
+bool TrySplit(const std::string& str, std::string& key, std::string& value)
+{
+    {
+        const std::string header = "BLOCK: ";
+        if (str.find(header) == 0)
+        {
+            key = "block";
+            value = str.substr(header.length());
+            return true;
+        }
+    }
+
+    {
+        const std::string header = "DATE: ";
+        if (str.find(header) == 0)
+        {
+            key = "date";
+            value = str.substr(header.length());
+            return true;
+        }
+    }
+
+    {
+        const std::string header = "FROM: ";
+        if (str.find(header) == 0)
+        {
+            key = "from";
+            value = str.substr(header.length());
+            return true;
+        }
+    }
+
+    {
+        const std::string header = "TO: ";
+        if (str.find(header) == 0)
+        {
+            key = "to";
+            value = str.substr(header.length());
+            return true;
+        }
+    }
+
+    {
+        const std::string header = "AMOUNT: ";
+        if (str.find(header) == 0)
+        {
+            key = "amount";
+            value = str.substr(header.length());
+            return true;
+        }
+    }
+
+    {
+        const std::string header = "MESSAGE: ";
+        if (str.find(header) == 0)
+        {
+            key = "message";
+            value = str.substr(header.length());
+            return true;
+        }
+    }
+
+    {
+        const std::string header = "HASH: ";
+        if (str.find(header) == 0)
+        {
+            key = "hash";
+            value = str.substr(header.length());
+            return true;
+        }
+    }
+
+    {
+        const std::string header = "NAME: ";
+        if (str.find(header) == 0)
+        {
+            key = "name";
+            value = str.substr(header.length());
+            return true;
+        }
+    }
+
+    {
+        const std::string header = "VERSION: ";
+        if (str.find(header) == 0)
+        {
+            key = "version";
+            value = str.substr(header.length());
+            return true;
+        }
+    }
+
+    {
+        const std::string header = "AUTHOR: ";
+        if (str.find(header) == 0)
+        {
+            key = "author";
+            value = str.substr(header.length());
+            return true;
+        }
+    }
+
+    {
+        const std::string header = "COMMENT: ";
+        if (str.find(header) == 0)
+        {
+            key = "comment";
+            value = str.substr(header.length());
+            return true;
+        }
+    }
+
+    return false;
+}
+
+TParsedData ParseTextData(const std::string& str)
+{
+    TParsedData result;
+
+    std::string temp;
+    std::string key;
+    std::string value;
+
+    for (size_t i = 0; i < str.length(); i++)
+    {
+        if ((temp.find(':') == std::string::npos)
+                || str[i] != '\n')
+        {
+            temp += str[i];
+        }
         else
-            result += "_";
+        {
+            if (TrySplit(temp, key, value))
+            {
+                result.push_back(std::make_pair(key, value));
+            }
+            temp = "";
+        }
+    }
+
+    if (temp.length() > 0)
+    {
+        if (TrySplit(temp, key, value))
+        {
+            result.push_back(std::make_pair(key, value));
+        }
+        else
+        {
+            result.push_back(std::make_pair("remainingText", temp));
+        }
     }
 
     return result;
 }
 
-
-std::string filterURLRequest(const std::string& name)
+void reloadMessage(const std::string& name)
 {
-    std::string result = "";
+    MessageInfo msg;
 
-    for (size_t u = 0; u < name.length(); u++)
+    std::string loaded = WebTools::readWebTemplateData("messages", name + ".html");
+
+    TParsedData pd = ParseTextData(loaded);
+
+    for (size_t i = 0; i < pd.size(); i++)
     {
-        if (isalnum(name[u]) || name[u] == '?' || name[u] == '.' || name[u] == '/')
-            result += name[u];
+        if (pd[i].first == "block") msg.blockId = pd[i].second;
+        if (pd[i].first == "date") msg.msgTime = pd[i].second;
+        if (pd[i].first == "from") msg.from = pd[i].second;
+        if (pd[i].first == "to") msg.to = pd[i].second;
+        if (pd[i].first == "amount") msg.amount = pd[i].second;
+        if (pd[i].first == "message") msg.message = pd[i].second;
     }
 
-    return result;
+    while (g_messages.size() > MaxMessagesShow)
+        g_messages.pop_back();
+
+    g_messages.insert(g_messages.begin(), msg);
+}
+
+void reloadVaultDoc(const std::string& name)
+{
+    VaultDocumentInfo msg;
+
+    std::string loaded = WebTools::readWebTemplateData("vault", name + ".html");
+
+    TParsedData pd = ParseTextData(loaded);
+
+    for (size_t i = 0; i < pd.size(); i++)
+    {
+        if (pd[i].first == "block") msg.blockId = pd[i].second;
+        if (pd[i].first == "date") msg.msgTime = pd[i].second;
+        if (pd[i].first == "from") msg.from = pd[i].second;
+        if (pd[i].first == "to") msg.to = pd[i].second;
+        if (pd[i].first == "hash")
+        {
+            // remove spaces for search ability
+            msg.hash = StrTools::replaceTemplate(pd[i].second, " ", "");
+        }
+        if (pd[i].first == "name") msg.name = pd[i].second;
+        if (pd[i].first == "version") msg.version = pd[i].second;
+        if (pd[i].first == "author") msg.author = pd[i].second;
+        if (pd[i].first == "comment") msg.comment = pd[i].second;
+    }
+
+    g_vaultDocs.insert(g_vaultDocs.begin(), msg);
+}
+
+std::vector<std::string> g_lastDupFixup;
+static const int FixupEntriesCount = 100;
+
+void storeRichList(const std::string& address, int64 amountChange)
+{
+    try
+    {
+        boost::filesystem::path pathBe = GetDataDir() / "richlist";
+        boost::filesystem::create_directory(pathBe);
+
+        std::string blockFileName =
+                StrTools::safeEncodeFileNameWithoutExtension(address) + ".html";
+
+        boost::filesystem::path pathBlockFile = pathBe / blockFileName;
+
+        bool fileIsAlreadyCreated = boost::filesystem::exists(pathBlockFile);
+
+        int64 prevValue = 0;
+
+        if (fileIsAlreadyCreated)
+        {
+            std::fstream fileBlock(pathBlockFile.c_str(), std::ios::in);
+            fileBlock >> prevValue;
+        }
+
+        if (amountChange != 0)
+        {
+            prevValue += amountChange;
+
+            std::fstream fileBlock(pathBlockFile.c_str(), std::ios::out);
+            fileBlock << prevValue;
+        }
+
+        bool found = false;
+        for (int i = 0; i < g_richlist.size(); i++)
+        {
+            if (g_richlist[i].second == address)
+            {
+                g_richlist[i].first = prevValue;
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+        {
+            g_richlist.push_back(std::make_pair(prevValue, address));
+        }
+
+        auto cmpBalances = [](std::pair<int64,std::string> const & a, std::pair<int64,std::string> const & b)
+        {
+             return a.first > b.first; // descending
+        };
+        std::sort(g_richlist.begin(), g_richlist.end(), cmpBalances);
+    }
+    catch (std::exception &ex)
+    {
+        printf("error while storing balance: %s", ex.what());
+    }
 }
 
 void reloadKnownObjects()
 {
     LOCK(g_cs_ids);
 
-    boost::filesystem::path pathBe = GetDataDir() / "blockexplorer";
-    boost::filesystem::directory_iterator end;
-
-    for (boost::filesystem::directory_iterator i(pathBe); i != end; ++i)
     {
-        const boost::filesystem::path cp = (*i);
-        if (fDebug && fDumpAll)
+        boost::filesystem::path pathBe = GetDataDir() / "blockexplorer";
+        boost::filesystem::directory_iterator end;
+
+        for (boost::filesystem::directory_iterator i(pathBe); i != end; ++i)
         {
-            printf("Enumerated file %s \n", cp.stem().string().c_str());
+            const boost::filesystem::path cp = (*i);
+            if (fDebug && fDumpAll)
+            {
+                printf("Enumerated file %s \n", cp.stem().string().c_str());
+            }
+            g_ids[cp.stem().string()] = TYPE_ANY;
         }
-        g_ids[cp.stem().string()] = TYPE_ANY;
+    }
+
+    try
+    {
+        boost::filesystem::path pathBe = GetDataDir() / "vault";
+        boost::filesystem::directory_iterator end;
+
+        for (boost::filesystem::directory_iterator i(pathBe); i != end; ++i)
+        {
+            const boost::filesystem::path cp = (*i);
+            if (fDebug && fDumpAll)
+            {
+                printf("Enumerated file %s \n", cp.stem().string().c_str());
+            }
+            reloadVaultDoc(cp.stem().string());
+        }
+    }
+    catch(std::exception& ex)
+    {
+        printf("Error loading vault: %s\n", ex.what());
+    }
+
+    try
+    {
+        boost::filesystem::path pathBe = GetDataDir() / "richlist";
+        boost::filesystem::directory_iterator end;
+
+        for (boost::filesystem::directory_iterator i(pathBe); i != end; ++i)
+        {
+            const boost::filesystem::path cp = (*i);
+            if (fDebug && fDumpAll)
+            {
+                printf("Enumerated file %s \n", cp.stem().string().c_str());
+            }
+            storeRichList(cp.stem().string(), 0);
+        }
+    }
+    catch(std::exception& ex)
+    {
+        printf("Error loading richlist: %s\n", ex.what());
+    }
+
+    try
+    {
+        boost::filesystem::path pathBe = GetDataDir() / "messages";
+        boost::filesystem::directory_iterator end;
+
+        for (boost::filesystem::directory_iterator i(pathBe); i != end; ++i)
+        {
+            const boost::filesystem::path cp = (*i);
+            if (fDebug && fDumpAll)
+            {
+                printf("Enumerated file %s \n", cp.stem().string().c_str());
+            }
+            reloadMessage(cp.stem().string());
+        }
+    }
+    catch(std::exception& ex)
+    {
+        printf("Error loading message data: %s\n", ex.what());
     }
 }
 
@@ -187,104 +516,32 @@ std::string fixupKnownObjects(const std::string& src)
     return result;
 }
 
-unsigned int getNowTime()
-{
-    return time(NULL);
-}
 
-std::string unixTimeToString(unsigned int ts)
-{
-    struct tm epoch_time;
-    time_t tsLI = ts;
-    memcpy(&epoch_time, gmtime(&tsLI), sizeof (struct tm));
-    char res[64];
-    strftime(res, sizeof(res), "%Y-%m-%d %H:%M:%S UTC", &epoch_time);
-    return res;
-}
-
-std::string unixTimeToAgeFromNow(unsigned int ts, unsigned int from)
-{
-    if (from <= ts) return "now";
-    unsigned int diff = from - ts;
-    if (diff < 60) return std::to_string(diff) + "s";
-    if (diff < 60*60) return std::to_string(diff/60) + "m";
-    return std::to_string(diff/60/60) + "h";
-}
-
-
-int GetTotalSupply()
-{
-    try
-    {
-        boost::filesystem::path pathBe = GetDataDir() / "blockexplorer";
-        boost::filesystem::create_directory(pathBe);
-
-        std::string addressFileName = "circulating_supply";
-        boost::filesystem::path pathSupplyFile = pathBe / addressFileName;
-
-        std::fstream fileIn(pathSupplyFile.c_str(), std::ifstream::in);
-
-        int supply;
-        fileIn >> supply;
-
-        fileIn.close();
-        return supply;
-    }
-    catch (std::exception& ex)
-    {
-        printf("Read supply file failed [%s]\n", ex.what());
-    }
-    return 0;
-}
-
-bool AddTotalSupply(int coins)
-{
-    int newSupply = GetTotalSupply();
-    if (!newSupply) return false;
-    newSupply += coins;
-
-    try
-    {
-        boost::filesystem::path pathBe = GetDataDir() / "blockexplorer";
-        boost::filesystem::create_directory(pathBe);
-
-        std::string addressFileName = "circulating_supply";
-        boost::filesystem::path pathSupplyFile = pathBe / addressFileName;
-
-        std::fstream fileOut(pathSupplyFile.c_str(), std::ofstream::out);
-
-        fileOut << newSupply;
-
-        fileOut.close();
-    }
-    catch (std::exception& ex)
-    {
-        printf("Write supply file failed [%s]\n", ex.what());
-        return false;
-    }
-    return true;
-}
-
-static const std::string searchScript = + "<script>function nav() { window.location.href=\"search?q=\" + window.document.getElementById(\"search\").value; return false; }</script>";
 
 static const std::string searchForm = "<form id='searchForm' onSubmit='return nav();' class='form-wrapper' > "
      " <input type='text' id='search' placeholder='Search address, block, transaction, tag...' value='' width=\"628px\" required> "
      " <input style='margin-top: -1px' type='button' value='find' id='submit' onclick='return nav();'></form>";
 
-static const std::string searchFormBalanceChecker = "<form id='searchForm' onSubmit='return nav();' class='form-wrapper' > "
-     " <input type='text' id='search' placeholder='Search by Scash address...' value='' width=\"628px\" required> "
-     " <input style='margin-top: -1px' type='button' value='find' id='submit' onclick='return nav();'></form>";
+static const std::string searchScript = + "<script>function nav() { window.location.href=\"search?q=\" + window.document.getElementById(\"search\").value; return false; }</script>";
+
+static const std::string searchFormDoc = "<form id='searchForm' onSubmit='return nav();' class='form-wrapper' > "
+     " <input type='text' id='search' placeholder='Search document name, document hash, author...' value='' width=\"628px\" required> "
+     " <input style='margin-top: -1px; -webkit-filter: hue-rotate(60deg); filter: hue-rotate(60deg);' type='button' value='find' id='submit' onclick='return nav();'></form>";
+
+static const std::string searchScriptDoc = + "<script>function nav() { window.location.href=\"doc?q=\" + window.document.getElementById(\"search\").value; return false; }</script>";
 
 std::string getHead(const std::string& titleAdd = "", bool addRefreshTag = false,
                     const std::string& titleBase = "Scash Block Explorer",
-                    const std::string& searchFormUse = searchForm)
+                    const std::string& searchFormUse = searchForm,
+                    const std::string& searchScripUse = searchScript)
 {
     std::string result =  "<html><head><title>" + titleBase;
     if (titleAdd != "") result += " - " + titleAdd;
     result += "</title>"
          + Style::getStyleCssLink()
-         + searchScript
+         + searchScripUse
          + (addRefreshTag ? "<meta http-equiv=\"refresh\" content=\"10\" />" : "")
+         + "<meta charset=\"UTF-8\">"
          + "</head><body>"
          + searchFormUse;
     return result;
@@ -311,6 +568,7 @@ void makeObjectKnown(const std::string& id, ObjectTypes t)
 static const std::string Address_NoAddress = "no address";
 static const int MaxShowMessageCharactersTrTable = 140;
 
+
 bool addAddressTx(const std::string& fileAddress,
                   const std::string& sourceAddress, const std::string& destAddress,
                   int64 amount,
@@ -320,6 +578,18 @@ bool addAddressTx(const std::string& fileAddress,
 {
     if (Address_NoAddress != sourceAddress) makeObjectKnown(sourceAddress, TYPE_ADDRESS);
     if (Address_NoAddress != destAddress) makeObjectKnown(destAddress, TYPE_ADDRESS);
+
+    std::string uid = txId + ":" + sourceAddress + ":" + destAddress + ":" + std::to_string(amount);
+    for (size_t i = 0; i < g_lastDupFixup.size(); i++)
+    {
+        if (g_lastDupFixup[i] == uid)
+            return true; // aldready stored
+    }
+    g_lastDupFixup.insert(g_lastDupFixup.begin(), uid);
+    while (g_lastDupFixup.size() > FixupEntriesCount)
+    {
+        g_lastDupFixup.pop_back();
+    }
 
     makeObjectKnown(txId, TYPE_TX);
 
@@ -339,7 +609,7 @@ bool addAddressTx(const std::string& fileAddress,
         boost::filesystem::path pathBe = GetDataDir() / "blockexplorer";
         boost::filesystem::create_directory(pathBe);
 
-        std::string addressFileName = safeEncodeFileNameWithoutExtension(fileAddress) + ".html";
+        std::string addressFileName = StrTools::safeEncodeFileNameWithoutExtension(fileAddress) + ".html";
         boost::filesystem::path pathAddressFile = pathBe / addressFileName;
 
         bool fileIsAlreadyCreated = boost::filesystem::exists(pathAddressFile);
@@ -375,6 +645,8 @@ bool addAddressTx(const std::string& fileAddress,
                 << "<td>" << "<!--dynamic:txstate:0x"+txId+"-->" << "</td>"
                 << "<td>" << message << "</td>"
                 << "<tr>\n";
+
+        storeRichList(fileAddress, amount);
 
         std::string addressContent = temp.str();
 
@@ -415,51 +687,68 @@ bool isMessageServiceOne(const std::string& source)
     return source.find("%SERVICE") == 0;
 }
 
-std::string allowSomeBBcodes(const std::string& source)
+bool isMessageVaultOne(const std::string& source)
 {
-    std::string result = source;
+    return source.find("%VAULT") == 0;
+}
 
-    return result; // TODO.
+bool isSafeExtLink(const std::string& src)
+{
+    if (src.length() < 10 || src.length() > 80) return false;
 
-    if (!result.empty())
+    std::string data = src;
+    std::transform(data.begin(), data.end(), data.begin(), ::tolower);
+
+    if (data.find("http://") == 0 || data.find("https://") == 0)
     {
-        bool doneSomething;
-
-    tryFurther:
-        doneSomething = false;
-
-        size_t urlPos = result.find("[url=");
-        std::string temp = "";
-        if (urlPos != std::string::npos)
+        for (size_t i = 0; i < data.length(); i++)
         {
-            urlPos += 4;
-            while (urlPos < result.length())
+            if (!isalnum(data[i]) && data[i] != '/' && data[i] != ':' && data[i] != '.'
+                    && data[i] != '?' && data[i] != '%' && data[i] != '_' && data[i] != '-'
+                    && data[i] != '=')
             {
-                char c = result[urlPos];
-                if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-                    (c >= '0' && c <= '9') || (c == ':') || (c == '/')
-                        || (c == '-') || (c == '.'))
-                {
-                    temp += c;
-                }
-                else break;
-
-                if (temp.length() > 32) break;
-
-                urlPos++;
+                return false;
             }
         }
-        if (!temp.empty())
-        {
-            std::string replaceFrom = "[url=" + temp + "]";
-            std::string replaceTo = "<a href=\"" + temp + "\">" + temp + "</a>";
 
-            std::string prevResult = result;
-            boost::replace_all(result, replaceFrom, replaceTo);
-            if (result != prevResult) doneSomething = true;
-            if (doneSomething) goto tryFurther;
-        }
+        return true;
     }
+
+    return false;
+}
+
+std::string allowExtLinks(const std::string& source)
+{
+    std::string result = "";
+    std::string temp = "";
+
+    for (size_t i = 0; i < source.length(); i++)
+    {
+        if (source[i] == ' ' || source[i] == '\n' || source[i] == '<' || source[i] == '>')
+        {
+            if (temp.length() > 0)
+            {
+                if (isSafeExtLink(temp))
+                {
+                    temp = "<a style='color: red' href=\"" + temp + "\">" + temp + "</a>";
+                }
+            }
+            result += temp + source[i];
+            temp = "";
+        }
+        else
+            temp += source[i];
+    }
+
+    if (temp.length() > 0)
+    {
+        if (isSafeExtLink(temp))
+        {
+            temp = "<a style='color: red' href=\"" + temp + "\">" + temp + "</a>";
+        }
+        result += temp;
+    }
+
     return result;
 }
 
@@ -476,12 +765,75 @@ std::string calcTxsAmount(const std::vector<CTransaction>& txs)
     return std::to_string((float)amount / (float)COIN);
 }
 
+int IncreasingId = 0;
+
+void storeVaultEntry(const MessageInfo& msg)
+{
+    try
+    {
+        std::string docName = std::to_string(TimeTools::getNowTime()) + "-" + std::to_string(IncreasingId++);
+        {
+            boost::filesystem::path pathBe = GetDataDir() / "vault";
+            boost::filesystem::create_directory(pathBe);
+
+            std::string blockFileName = docName + ".html";
+
+            boost::filesystem::path pathBlockFile = pathBe / blockFileName;
+
+            std::fstream fileBlock(pathBlockFile.c_str(), std::ios::out);
+            fileBlock << "BLOCK: " << msg.blockId << "\n";
+            fileBlock << "DATE: " << msg.msgTime << "\n";
+            fileBlock << "FROM: " << msg.from << "\n";
+            fileBlock << "TO: " << msg.to << "\n";
+            fileBlock << "AMOUNT: " << msg.amount << "\n";
+
+            std::string tmp = simpleHTMLSafeDisplayUnFilter(msg.message);
+            tmp = StrTools::replaceTemplate(tmp, "%VAULT", "");
+            while (tmp.length() > 0 && tmp[0] == '\n') tmp.erase(tmp.begin());
+
+            fileBlock << tmp;
+        }
+
+        reloadVaultDoc(docName);
+    }
+    catch (std::exception &ex)
+    {
+        printf("error while storing message: %s", ex.what());
+    }
+}
+
+void storeMessageData(const MessageInfo& msg)
+{
+    try
+    {
+        boost::filesystem::path pathBe = GetDataDir() / "messages";
+        boost::filesystem::create_directory(pathBe);
+
+        std::string blockFileName =
+               std::to_string(TimeTools::getNowTime()) + "-" + std::to_string(IncreasingId++) + ".html";
+
+        boost::filesystem::path pathBlockFile = pathBe / blockFileName;
+
+        std::fstream fileBlock(pathBlockFile.c_str(), std::ios::out);
+        fileBlock << "BLOCK: " << msg.blockId << "\n";
+        fileBlock << "DATE: " << msg.msgTime << "\n";
+        fileBlock << "FROM: " << msg.from << "\n";
+        fileBlock << "TO: " << msg.to << "\n";
+        fileBlock << "AMOUNT: " << msg.amount << "\n";
+        fileBlock << "MESSAGE: " << msg.message;
+    }
+    catch (std::exception &ex)
+    {
+        printf("error while storing message: %s", ex.what());
+    }
+}
+
 void printTxToStream(CTransaction& t, std::ostringstream& stream,
                      int height,
                      const std::string& blockId,
                      FormattingType formattingType)
 {
-    std::string txDate = unixTimeToString(t.nTime);
+    std::string txDate = TimeTools::unixTimeToString(t.nTime);
     std::string hash = t.GetHash().ToString();
 
     stream << "<h3 align=center><a href='" + blockId + ".html'>&lt;&lt;&lt;</a>&nbsp;Details for transaction " << hash << "</h3>";
@@ -596,23 +948,21 @@ void printTxToStream(CTransaction& t, std::ostringstream& stream,
         nonZeroInputAddr = Address_NoAddress;
 
         // mined blocks
-        for (size_t u = 0; u < nonZeroAmountOuts.size() && u < nonZeroOutputAddrs.size(); u++)
+        for (size_t u = 0; u < nonZeroAmountOuts.size() && u < nonZeroOutputAddrs.size() && u < 1; u++)
         {
-            if (nonZeroAmountOuts[u] == 8*COIN)
-            {
-                AddTotalSupply(nonZeroAmountOuts[u] / COIN);
-            }
-        }
+            int cnt = nonZeroAmountOuts[u] / COIN;
+            WebTools::AddToCounterFile("circulating_supply", cnt);
+       }
     }
     else if (t.HasMessage() && !isMessageHiddenToPublic(t.message) && !isMessageServiceOne(t.message))
     {
         MessageInfo msg;
         msg.from =  nonZeroInputAddr;
-        msg.message = allowSomeBBcodes(simpleHTMLSafeDisplayFilter(t.message));
+        msg.message = simpleHTMLSafeDisplayFilter(t.message);
         msg.to = "";
         msg.blockId = blockId;
 
-        int totalAmount = 0;
+        int64 totalAmount = 0;
         for (size_t u = 0; u < nonZeroAmountOuts.size() && u < nonZeroOutputAddrs.size(); u++)
         {
             totalAmount += nonZeroAmountOuts[u];
@@ -637,7 +987,15 @@ void printTxToStream(CTransaction& t, std::ostringstream& stream,
 
         if (!alreadyFound)
         {
-            g_messages.insert(g_messages.begin(), msg);
+            if (isMessageVaultOne(t.message))
+            {
+                storeVaultEntry(msg);
+            }
+            else
+            {
+                g_messages.insert(g_messages.begin(), msg);
+                storeMessageData(msg);
+            }
         }
     }
 
@@ -693,7 +1051,7 @@ void printBlockToStream(CBlock& b, std::ostringstream& stream, int height, Forma
                << "<tr class=\"even\"><td>Version</td><td>" << b.nVersion << "</td></tr>"
                << "<tr><td>Prev block hash</td><td>" << b.hashPrevBlock.ToString() << "</td></tr>"
                << "<tr class=\"even\"><td>Merkle root hash</td><td>" << b.hashMerkleRoot.ToString() << "</td></tr>"
-               << "<tr><td>Time</td><td>" << unixTimeToString(b.nTime) << "</td></tr>"
+               << "<tr><td>Time</td><td>" << TimeTools::unixTimeToString(b.nTime) << "</td></tr>"
                << "<tr class=\"even\"><td>nBits</td><td>" << b.nBits << "</td></tr>"
                << "<tr><td>Nonce</td><td>" << b.nNonce << "</td></tr>"
                << "<tr class=\"even\"><td>Transactions count</td><td>" << b.vtx.size() << "</td></tr>"
@@ -768,7 +1126,7 @@ bool writeBlockTransactions(int height, CBlock& block)
             std::string txContent = temp.str();
 
             boost::filesystem::path pathBe = GetDataDir() / "blockexplorer";
-            std::string txFileName = safeEncodeFileNameWithoutExtension(txId) + ".html";
+            std::string txFileName = StrTools::safeEncodeFileNameWithoutExtension(txId) + ".html";
             boost::filesystem::path pathTxFile = pathBe / txFileName;
 
             std::fstream fileBlock(pathTxFile.c_str(), std::ios::out);
@@ -886,7 +1244,7 @@ bool BlocksContainer::WriteBlockInfo(int height, CBlock& block)
         writeBlockTransactions(height, block);
         updateBlockInfo(block);
 
-        std::string blockFileName = safeEncodeFileNameWithoutExtension(blockId) + ".html";
+        std::string blockFileName = StrTools::safeEncodeFileNameWithoutExtension(blockId) + ".html";
 
         std::ostringstream temp;
         printBlockToStream(block, temp, height, FORMAT_TYPE_NICE_HTML);
@@ -947,6 +1305,312 @@ bool BlocksContainer::WriteBlockInfo(int height, CBlock& block)
     return true;
 }
 
+int GetTotalSupply()
+{
+    return WebTools::ReadCounterFile("circulating_supply");
+}
+
+
+std::string GetNetworkStatsPage()
+{
+    std::string result = getHead("Network Stats");
+
+    result += "<div style=\"margin-left: auto; margin-right: auto; width: 780px\">";
+    result += "<div style='text-align: center; margin-left: auto; margin-right: auto;'><a href=\"index.html\" style=\"font-size: 20px; text-decoration: none\"><i class=\"icono-chain\"></i>&nbsp;Back to the blockchain info</a></div>";
+
+    result += "<div><div style=\"margin-left: auto; margin-right: auto; width: 780px\">";
+
+    result += getNodesStats();
+
+    result += "</div>";
+
+    result += getTail();
+    return result;
+}
+
+std::string GetRichListPage()
+{
+    std::string result = getHead("Rich list");
+
+    result += "<div style=\"margin-left: auto; margin-right: auto; width: 780px\">";
+    result += "<div style='text-align: center; margin-left: auto; margin-right: auto;'><a href=\"index.html\" style=\"font-size: 20px; text-decoration: none\"><i class=\"icono-chain\"></i>&nbsp;Back to the blockchain info</a></div>";
+
+    result += "<div style='margin-top: 12px; text-align: center; margin-left: auto; margin-right: auto;'><b style=\"font-size: 16px; text-decoration: none\"><i class=\"icono-pieChart\"></i>&nbsp;Top 50 Richest SpeedCash Addresses</b></div>";
+
+
+    result += "<div><div style=\"margin-top: 12px; margin-left: auto; margin-right: auto; width: 780px\">";
+
+    int totalCoins = GetTotalSupply();
+    if (totalCoins > 0)
+    {
+        int topTotalCoins = 0;
+
+        result += "<p style='margin-top: 12px'><table><tr><th>Rank</th><th>Address</th><th>Coins amount</th><th>Percentage</th></tr>";
+
+        for (int i = 0; i < 50 && i < g_richlist.size(); i++)
+        {
+            double realCoins = (double)g_richlist[i].first / (double)COIN;
+
+            result += "<tr><td>" + std::to_string(i) + "</td><td>"
+                    + fixupKnownObjects(g_richlist[i-1].second) + "</td><td>" + std::to_string(realCoins) + " SCS</td><td>"
+                    + std::to_string(realCoins / (double)totalCoins * 100.0) + "%</td></tr>";
+
+            topTotalCoins += (int)realCoins;
+        }
+        result += "</table>";
+
+        double totalPercent = (double)topTotalCoins / (double)totalCoins * 100.0;
+
+        result += "<div style='margin-top: 20px; text-align: center; margin-left: auto; margin-right: auto;'>Top 50 addresses have in common <b>"
+                + std::to_string(topTotalCoins)
+                + "</b> SCS, which is <b>" + std::to_string(totalPercent)
+                + "%</b> of total circulating supply of <b>" + std::to_string(totalCoins) + "</b> SCS.</div>";
+    }
+
+    result += "</div>";
+
+    result += getTail();
+    return result;
+}
+
+std::string displayHashInTwoLines(const std::string& str)
+{
+    std::string temp = str;
+    if (temp.length() > 128) temp = temp.substr(0, 128);
+    if (temp.length() > 64) temp.insert(temp.begin() + 64, ' ');
+    return temp;
+}
+
+std::string maxLength(const std::string& str, int length)
+{
+    std::string res = str;
+    if (res.length() > length - 3)
+    {
+        res = res.substr(0, length-3) + "...";
+    }
+    return res;
+}
+
+std::string safeDocSearchUrl(const std::string& str)
+{
+    std::string res;
+    for (size_t u = 0; u < str.length(); u++)
+    {
+        if (isalnum(str[u]) || str[u] == '_' || str[u] == '-' ||  str[u] == '.')
+        {
+            res += str[u];
+        }
+        else
+        {
+            break;
+        }
+    }
+    return res;
+}
+
+std::string GetVaultPage()
+{
+    LOCK(g_cs_valut);
+
+    std::string result = getHead("Vault documents", false, "Scash Vault", searchFormDoc, searchScriptDoc);
+
+    result += "<div style=\"margin-left: auto; margin-right: auto; width: 900px\">";
+    result += "<div style='text-align: center; margin-left: auto; margin-right: auto;'><a href=\"index.html\" style=\"font-size: 20px; text-decoration: none\"><i class=\"icono-chain\"></i>&nbsp;Back to the blockchain info</a></div>";
+
+    result += "<div style=\"text-align: center; margin-top: 12px; margin-left: auto; margin-right: auto; width: 780px\">";
+
+    int upTo = 50;
+    if (g_vaultDocs.size() < upTo) upTo = g_vaultDocs.size();
+
+    result += "<b style=\"font-size: 16px;\"><i class=\"icono-document\"></i>&nbsp;There are <b style=\"color: blue\">"
+            + std::to_string(g_vaultDocs.size()) + "</b> documents published in this blockchain (displayed last "
+            + std::to_string(upTo) + ").</b></div>";
+
+    result += "<p>";
+
+    result += "<div style=\"margin-top: 12px; margin-left: auto; margin-right: auto;\">";
+    result += "<table><tr><th>Document hash</th><th>Document name</th><th>Version</th><th>Author</th><th>Publication time</th></tr>";
+
+    for (size_t i = 0; i < g_vaultDocs.size() && i < upTo; i++)
+    {
+        result += (std::string)("<tr><td>")
+                + "<a href=\"/doc?q=" + safeDocSearchUrl(g_vaultDocs[i].hash) + "\">"
+                    + displayHashInTwoLines(g_vaultDocs[i].hash) + "</a></td>"
+                + "<td>" + "<a href=\"/doc?q=" + safeDocSearchUrl(g_vaultDocs[i].name) + "\">"
+                    + maxLength(simpleHTMLSafeDisplayFilter(g_vaultDocs[i].name), 46) + "</a></td>"
+                + "<td>" + simpleHTMLSafeDisplayFilter(g_vaultDocs[i].version) + "</td>"
+                + "<td>" + "<a href=\"/doc?q=" + safeDocSearchUrl(g_vaultDocs[i].author) + "\">"
+                    + maxLength(simpleHTMLSafeDisplayFilter(g_vaultDocs[i].author), 46) + "</a></td>"
+                + "<td>" + g_vaultDocs[i].msgTime + "</td>"
+                + "</tr>";
+    }
+
+    result += "</table></div>";
+
+    result += getTail();
+    return result;
+}
+
+bool nonStrictMatch(std::string sA, std::string sB)
+{
+    std::transform(sA.begin(), sA.end(), sA.begin(), ::tolower);
+    std::transform(sB.begin(), sB.end(), sB.begin(), ::tolower);
+    if (sA.find(sB) == 0) return true;
+    return false;
+}
+
+std::string SearchDocPage(const std::string &doc)
+{
+    LOCK(g_cs_valut);
+
+    std::string result = getHead("Search for documents", false, "Scash Vault", searchFormDoc, searchScriptDoc);
+
+    result += "<div style=\"margin-left: auto; margin-right: auto; width: 900px\">";
+    result += "<div style='text-align: center; margin-left: auto; margin-right: auto;'><a href=\"index.html\" style=\"font-size: 20px; text-decoration: none\"><i class=\"icono-chain\"></i>&nbsp;Back to the blockchain info</a></div>";
+
+    result += "<div style=\"text-align: center; margin-top: 12px; margin-left: auto; margin-right: auto; width: 780px\">";
+
+    std::vector<VaultDocumentInfo> matched;
+
+    int upTo = 50;
+
+    bool matchedByHash = false;
+    bool matchedByAuthor = false;
+    bool matchedByDocName = false;
+
+    if (doc.length() > 4)
+    {
+        for (size_t u = 0; u < g_vaultDocs.size() && matched.size() < upTo; u++)
+        {
+            if (nonStrictMatch(g_vaultDocs[u].author, doc))
+            {
+                matched.push_back(g_vaultDocs[u]);
+                matchedByAuthor = true;
+            }
+            if (nonStrictMatch(g_vaultDocs[u].name, doc))
+            {
+                matched.push_back(g_vaultDocs[u]);
+                matchedByDocName = true;
+            }
+            if (nonStrictMatch(g_vaultDocs[u].hash, doc))
+            {
+                matched.push_back(g_vaultDocs[u]);
+                matchedByHash = true;
+            }
+        }
+    }
+
+    bool sameHashesDifferentNames = false;
+
+    auto cmpDates = [](VaultDocumentInfo const & a, VaultDocumentInfo const & b)
+    {
+         return a.msgTime < b.msgTime;
+    };
+    std::sort(matched.begin(), matched.end(), cmpDates);
+
+    if (matchedByDocName && !matchedByAuthor)
+    {
+        std::vector<VaultDocumentInfo> m1 = matched;
+
+        for (size_t v = 0; v < 1; v++)
+        {
+            for (size_t u = 0; u < g_vaultDocs.size() && matched.size() < upTo; u++)
+            {
+                if (nonStrictMatch(g_vaultDocs[u].hash, m1[v].hash)
+                        && g_vaultDocs[u].toStringDump() != m1[v].toStringDump())
+                {
+                    matched.push_back(g_vaultDocs[u]);
+                    sameHashesDifferentNames = true;
+                }
+            }
+        }
+    }
+
+    std::sort(matched.begin(), matched.end(), cmpDates);
+
+    if (sameHashesDifferentNames)
+    {
+        if (nonStrictMatch(matched[0].name, doc))
+        {
+            sameHashesDifferentNames = false;
+        }
+    }
+
+    if (matched.size() < upTo) upTo = matched.size();
+
+    result += "<b style=\"font-size: 16px;\"><i class=\"icono-document\"></i>&nbsp;You searched for the <b style=\"color: blue\">"
+            + maxLength(doc, 32) + "</b> document, and there are <b style=\"color: blue\">"
+            + std::to_string(upTo) + "</b> matches found.</b>";
+
+    if (matchedByHash)
+    {
+        result += "<p><i style=\"font-size: 16px;\">You searched the document by its hash, <i style='color: green'>right choice</i>: all the following information is exactly about the document requested.</i>";
+    }
+    else
+    {
+        if (sameHashesDifferentNames)
+        {
+            result += "<p><i style=\"font-size: 16px;\">You searched the document by its meta info, <i style='color: red'>be very careful</i>: document you requested was named differently on first publish.</i>";
+        }
+        else
+        {
+            result += "<p><i style=\"font-size: 16px;\">You searched the document by its meta info, <i style='color: purple'>be careful</i>: some of the following information may not relate to the original document.</i>";
+        }
+    }
+
+    result += "</div><p>";
+
+    std::string originalAuthor = "";
+    std::string originalHash = "";
+
+    for (size_t u = 0; u < matched.size() && u < 1; u++)
+    {
+        std::stringstream fileIndex;
+        fileIndex << "<div class=rectangle-speech-border><div class=msgmsg><b>Date published: </b>"
+                  << matched[u].msgTime << "</div><div class=msgmsg><b>From wallet address: </b>"
+                  << fixupKnownObjects(matched[u].from)
+                  << (matchedByAuthor ? "" : " <b style='color: blue'>First publisher!</b>")
+                  << "</div><div class=msgmsg><b>Author name: </b>"
+                  << simpleHTMLSafeDisplayFilter(matched[u].author)
+                  << (matchedByAuthor ? "" : " <b style='color: blue'>This is the original author</b>")
+                  << "</div><div class=msgamount><b>Document version: </b>"
+                  << simpleHTMLSafeDisplayFilter(matched[u].version) << "</div><div class=msgamount><b>Document name: </b>"
+                  << simpleHTMLSafeDisplayFilter(matched[u].name) << "</div><div class=msgamount><b>Hash: </b>"
+                  << simpleHTMLSafeDisplayFilter(matched[u].hash) << "</div><div class=msgmsg><b>Comment: </b>"
+                  << allowExtLinks(simpleHTMLSafeDisplayFilter(matched[u].comment)) << "</div></div><div class=spacer1>&nbsp;</div>";
+        originalAuthor = matched[u].author;
+        originalHash = matched[u].hash;
+        result += fileIndex.str();
+    }
+
+    for (size_t u = 1; u < matched.size(); u++)
+    {
+        std::stringstream fileIndex;
+        fileIndex << "<div class=rectangle-speech-border><div class=msgmsg><b>Date published: </b>"
+                  << matched[u].msgTime << "</div><div class=msgmsg><b>From wallet address: </b>"
+                  << fixupKnownObjects(matched[u].from) << "</div><div class=msgmsg><b>Author name: </b>"
+                  << simpleHTMLSafeDisplayFilter(matched[u].author)
+                  << (matched[u].author.empty() || matched[u].author == originalAuthor ? ""
+                            : " <b style='color: purple'>This is not the original author</b>")
+                  << "</div><div class=msgamount><b>Document version: </b>"
+                  << simpleHTMLSafeDisplayFilter(matched[u].version) << "</div><div class=msgamount><b>Document name: </b>"
+                  << simpleHTMLSafeDisplayFilter(matched[u].name) << "</div><div class=msgamount><b>Hash: </b>"
+                  << simpleHTMLSafeDisplayFilter(matched[u].hash)
+                  << (matched[u].hash == originalHash ? ""
+                            : (matchedByAuthor ? " <b style='color: purple'>This is another document</b>" : " <b style='color: red'>This is not the same document!</b>"))
+                  << "</div>"
+                  << (matched[u].comment.empty() ? ""
+                     : ("<div class=msgmsg><b style='color: blue'>Comment: </b>"
+                        + allowExtLinks(simpleHTMLSafeDisplayFilter(matched[u].comment)) + "</div>"))
+                  << "</div><div class=spacer1>&nbsp;</div>";
+        result += fileIndex.str();
+    }
+
+    result += "";
+
+    result += getTail();
+    return result;
+}
 
 void UpdateMessagesList(unsigned long nowTime)
 {
@@ -964,7 +1628,14 @@ void UpdateMessagesList(unsigned long nowTime)
         std::fstream fileIndex(pathIndexFile.c_str(), std::ios::out);
         fileIndex << getHead("Messages", true);
 
-        fileIndex << "<br><div style=\"margin-left: auto; margin-right: auto; width: 780px\"><a href=\"index.html\" style=\"font-size: 20px; text-decoration: none\"><i class=\"icono-chain\"></i>&nbsp;Back to the blockchain info</a></div><p>&nbsp;<br>";
+        fileIndex << "<br><div style=\"margin-left: auto; margin-right: auto; width: 780px\"><div style='text-align: center; margin-left: auto; margin-right: auto;'>"
+                  << "<a href=\"index.html\" style=\"font-size: 20px; text-decoration: none\"><i class=\"icono-chain\"></i>&nbsp;Back to the blockchain info</a></div></div>";
+
+        fileIndex << "<div><div style=\"text-align: center; margin-top: 12px; margin-left: auto; margin-right: auto; width: 780px\">";
+
+        fileIndex << "<i style=\"font-size: 16px;\"><i class=\"icono-comment\"></i>&nbsp;This is the live messages feed generated from SCS blockchain data which is sent by users. Please note, we are not responsible for its contents and the safety of external links (displayed in red color).</i>";
+
+        fileIndex << "<p>&nbsp;<br></div>";
 
         for (size_t u = 0; u < g_messages.size(); u++)
         {
@@ -973,10 +1644,10 @@ void UpdateMessagesList(unsigned long nowTime)
                       << fixupKnownObjects(g_messages[u].from) << "</div><div class=msgto><b>To: </b>"
                       << fixupKnownObjects(g_messages[u].to) << "</div><div class=msgamount><b>Amount: </b>"
                       << g_messages[u].amount << "</div><div class=msgmsg><b>Message: </b>"
-                      << g_messages[u].message << "</div></div><div class=spacer1>&nbsp;</div>";
+                      << allowExtLinks(g_messages[u].message) << "</div></div><div class=spacer1>&nbsp;</div>";
         }
         fileIndex << "<br><p style=\"margin-left: auto; margin-right: auto; width: 780px\">"
-                 <<"Updated at " << unixTimeToString(nowTime) << ".";
+                 <<"Updated at " << TimeTools::unixTimeToString(nowTime) << ".";
 
         fileIndex << getTail();
         fileIndex.close();
@@ -997,7 +1668,7 @@ bool  BlocksContainer::UpdateIndex(bool force)
     {
         LOCK(g_cs_be_fatlock);
 
-        unsigned long nowTime = getNowTime();
+        unsigned long nowTime = TimeTools::getNowTime();
 
         UpdateMessagesList(nowTime);
 
@@ -1025,14 +1696,19 @@ bool  BlocksContainer::UpdateIndex(bool force)
                 << "</td><td><div class='col-md-2 text-center'><div class='panel panel-danger'><div class='panel-heading'><div class='panel-title'><h3>Circulating supply</h3></div></div></div><div class='panel-body'><h4><span data-toggle='tooltip' data-placement='top' title='' class='just_span' data-original-title='Count of coins in use'>"
                 << "<a href='circulatingsupply.txt'>" << std::setprecision(2) << (GetTotalSupply()) << "SCS</a></span></h4></div></div></div></div>"
                 << "</td></tr>"
-                << "</table><p>";
+                << "</table>";
         }
         else
         {
-            fileIndex << "<br>";
+            // fileIndex << "<br>";
         }
 
-        fileIndex << "<br><div style=\"margin-left: auto; margin-right: auto; width: 780px\"><a href=\"messages.html\" style=\"font-size: 20px; text-decoration: none\"><i class=\"icono-comment\"></i>&nbsp;Display live feed of messages in this blockchain</a></div><p>&nbsp;<br>";
+        fileIndex << "<br><div style=\"margin-top: 12px; margin-left: auto; margin-right: auto; width: 780px\">"
+                  << "<div style='text-align: center; margin-left: auto; margin-right: auto;'><a href=\"messages.html\" style=\"font-size: 20px; text-decoration: none\"><i class=\"icono-comment\"></i>&nbsp;Display live feed of messages in this blockchain</a>"
+                  << "</div><div style='text-align: center; margin-top: 10px; margin-left: auto; margin-right: auto;'><a href=\"vault.html\" style=\"font-size: 20px; text-decoration: none\"><i class=\"icono-document\"></i>&nbsp;Vault documents</a>"
+                  << "<a href=\"richlist.html\" style=\"font-size: 20px; text-decoration: none; margin-left: 12px;\"><i class=\"icono-pieChart\"></i>&nbsp;Richlist</a>"
+                  << "<a href=\"stats.html\" style=\"font-size: 20px; text-decoration: none;  margin-left: 12px;\"><i class=\"icono-sitemap\"></i>&nbsp;Network stats</a>"
+                  << "</div></div><p>&nbsp;<br>";
 
         fileIndex << "<table width=\"832px\">";
         fileIndex << "<thead><tr><th>Block hash</th><th>PoS</th><th>Height</th><th>Time</th><th>TXs</th><th>Amount</th><th>Age</th></tr></thead>";
@@ -1046,10 +1722,10 @@ bool  BlocksContainer::UpdateIndex(bool force)
                           << "<td>" << fixupKnownObjects(g_latestBlocksAdded[u].id) << "</td><td>"
                           << (g_latestBlocksAdded[u].isPoS ? "&#10004;" : "") << "</td><td>"
                           << g_latestBlocksAdded[u].height << "</td><td>"
-                          << unixTimeToString(g_latestBlocksAdded[u].unixTs) << "</td><td>"
+                          << TimeTools::unixTimeToString(g_latestBlocksAdded[u].unixTs) << "</td><td>"
                           << std::to_string(g_latestBlocksAdded[u].txCount) << "</td><td>"
                           << g_latestBlocksAdded[u].scsAmount << "</td><td>"
-                          << unixTimeToAgeFromNow(g_latestBlocksAdded[u].unixTs, nowTime)
+                          << TimeTools::unixTimeToAgeFromNow(g_latestBlocksAdded[u].unixTs, nowTime)
                           << "</td></tr>\n";
                 if (u == 0) upToBlock = g_latestBlocksAdded[u].height;
             }
@@ -1064,7 +1740,7 @@ bool  BlocksContainer::UpdateIndex(bool force)
         }
 
         fileIndex << "<br><p style=\"margin-left: auto; margin-right: auto; width: 780px\">"
-                 << "Updated at " << unixTimeToString(nowTime) << " up to block " << upToBlock << ".";
+                 << "Updated at " << TimeTools::unixTimeToString(nowTime) << " up to block " << upToBlock << ".";
 
         fileIndex << getTail();
         fileIndex.close();
@@ -1087,7 +1763,7 @@ std::string fixupDynamicStatuses(const std::string& data)
 
         int64 balanceAmount = 0;
         int64 balanceAmountConfirmed = 0;
-        int tempBalanceToConfirm = 0;
+        int64 tempBalanceToConfirm = 0;
 
         size_t startPos = 0;
         const std::string dynamicStartMarker = "<!--dynamic:";
@@ -1131,7 +1807,7 @@ std::string fixupDynamicStatuses(const std::string& data)
                     if (temp.find(txAmountPlus) == 0)
                     {
                         temp = temp.substr(txAmountPlus.length());
-                        int r = std::stoi(temp);
+                        int64 r = std::stoll(temp);
                         balanceAmount += r;
                         tempBalanceToConfirm = r;
                         state = STECHNICAL;
@@ -1140,7 +1816,7 @@ std::string fixupDynamicStatuses(const std::string& data)
                     else if (temp.find(txAmountMinus) == 0)
                     {
                         temp = temp.substr(txAmountMinus.length());
-                        int r = std::stoi(temp);
+                        int64 r = std::stoll(temp);
                         balanceAmount -= r;
                         tempBalanceToConfirm = -r;
                         state = STECHNICAL;
@@ -1235,161 +1911,14 @@ std::string fixupDynamicStatuses(const std::string& data)
     }
 }
 
+
+
 // we don't wanna this thing will be DoSed right after start, so here's small hack to cutoff suspicious stuff
 const int largeRequestCutoff = 100; // ms
 
 // should be operated under g_cs_be_fatlock
 std::map<std::string, int> largeRequests;
 
-namespace BalanceChecker
-{
-    static const std::string indexInsertFile = "index.txt";
-    static const std::string foundInsertFile = "found.txt";
-    static const std::string notFoundInsertFile = "notfound.txt";
-    static const std::string wrongInsertFile = "wrong.txt";
-
-    static const std::string parsedBalancesFile = "balances.txt";
-    static const std::string accessLogFile = "access_log.txt";
-
-    static const std::string bcCaption = "Scash balance checker";
-
-    void writeAccessLog(const std::string& data)
-    {
-        try
-        {
-            boost::filesystem::path pathBe = GetDataDir() / "balancechecker";
-            boost::filesystem::create_directory(pathBe);
-
-            std::string addressFileName = "access_log.txt";
-            boost::filesystem::path pathAddressFile = pathBe / addressFileName;
-
-            std::fstream fileOut(pathAddressFile.c_str(), std::ofstream::out | std::ofstream::app);
-
-            fileOut << data << "\n";
-
-            fileOut.close();
-        }
-        catch (std::exception& ex)
-        {
-            printf("Write access log failed: %s for message [%s]\n", ex.what(), data.c_str());
-        }
-    }
-
-    std::string replaceTemplate(const std::string& where, const std::string& what, const std::string& to)
-    {
-        std::string result = where;
-        boost::replace_all(result, what, to);
-        return result;
-    }
-
-    std::string readInsertData(const std::string& filename)
-    {
-        try
-        {
-            boost::filesystem::path pathBe = GetDataDir() / "balancechecker";
-            boost::filesystem::create_directory(pathBe);
-
-            boost::filesystem::path pathTarget = pathBe / filename;
-
-            std::ifstream fileStream(pathTarget.string());
-            std::string strData;
-
-            fileStream.seekg(0, std::ios::end);
-            strData.reserve(fileStream.tellg());
-            fileStream.seekg(0, std::ios::beg);
-
-            strData.assign((std::istreambuf_iterator<char>(fileStream)), std::istreambuf_iterator<char>());
-
-            return strData;
-        }
-        catch (std::exception& ex)
-        {
-            printf("Read insert data failed: %s for file [%s]\n", ex.what(), filename.c_str());
-        }
-        return "";
-    }
-
-    bool lookupAddress(const std::string& address, double& balance)
-    {
-        try
-        {
-            boost::filesystem::path pathBe = GetDataDir() / "balancechecker";
-            boost::filesystem::create_directory(pathBe);
-
-            boost::filesystem::path pathTarget = pathBe / "balances.txt";
-
-            std::ifstream fileStream(pathTarget.string());
-
-            std::string line;
-            while (std::getline(fileStream, line))
-            {
-                if (line.find(address) != std::string::npos)
-                {
-                    std::istringstream iss(line);
-                    double balanceTmp;
-                    if ((iss >> balanceTmp))
-                    {
-                        balance = balanceTmp;
-                        return true;
-                    }
-                }
-            }
-        }
-        catch (...)
-        {
-            return false;
-        }
-        return false;
-    }
-
-    std::string getDataByRequest(const std::string& reqSafe)
-    {
-        if (reqSafe == "index" || reqSafe == "search?q")
-        {
-            return getHead("", false, bcCaption, searchFormBalanceChecker)
-                    + readInsertData(indexInsertFile)
-                    + getTail();
-        }
-        else if (reqSafe.length() == 34)
-        {
-            bool found = false;
-            double balance = 0.0;
-
-            found = lookupAddress(reqSafe, balance);
-
-            if (found)
-            {
-                writeAccessLog(reqSafe + " " + std::to_string(balance));
-            }
-            else
-            {
-                writeAccessLog(reqSafe + " not found");
-            }
-
-            if (found)
-            {
-                return getHead("Balance found: " + reqSafe, false, bcCaption, searchFormBalanceChecker)
-                    + replaceTemplate(
-                            replaceTemplate(
-                                readInsertData(foundInsertFile), "%1%", reqSafe),
-                            "%2%", std::to_string(balance) + " SCS")
-                    + getTail();
-            }
-            else
-            {
-                return getHead("Balance not found: " + reqSafe, false, bcCaption, searchFormBalanceChecker)
-                    + replaceTemplate(readInsertData(notFoundInsertFile), "%1%", reqSafe)
-                    + getTail();
-            }
-        }
-        else
-        {
-            return getHead("Wrong request: " + reqSafe, false, bcCaption, searchFormBalanceChecker)
-                    + replaceTemplate(readInsertData(wrongInsertFile), "%1%", reqSafe)
-                    + getTail();
-        }
-    }
-}
 
 std::string BlocksContainer::GetFileDataByURL(const std::string& urlUnsafe)
 {
@@ -1404,6 +1933,33 @@ std::string BlocksContainer::GetFileDataByURL(const std::string& urlUnsafe)
         size_t pos = reqSafe.find('/');
         if (pos != std::string::npos) reqSafe = reqSafe.substr(pos+1);
 
+        const std::string apiBlockIndex = "api/block-index/";
+        if (reqSafe.find(apiBlockIndex) == 0)
+        {
+            reqSafe = reqSafe.substr(apiBlockIndex.length());
+            int blockNum = std::stoi(reqSafe.c_str());
+
+            if (blockNum < 0 || blockNum > nBestHeight)
+                return "{\"status\":\"wrong block\"}";
+
+            CBlockIndex* pblockindex = FindBlockByHeight(blockNum);
+            if (pblockindex)
+            {
+                 std::string hash = pblockindex->phashBlock->GetHex();
+                 return "{\"blockHash\":\"" + hash + "\"}";
+            }
+            else
+            {
+                return "{\"status\":\"error\"}";
+            }
+        }
+
+        const std::string searchDocIndex = "doc?q=";
+        if (reqSafe.find(searchDocIndex) == 0)
+        {
+            return SearchDocPage(reqSafe.substr(searchDocIndex.length()));
+        }
+
         bool searchRequest = false;
         const std::string searchPrefix = "search?q=";
         if (reqSafe.length() > searchPrefix.length()
@@ -1415,7 +1971,7 @@ std::string BlocksContainer::GetFileDataByURL(const std::string& urlUnsafe)
             reqPrint = reqSafe;
         }
 
-        reqSafe = filterURLRequest(reqSafe);
+        reqSafe = StrTools::filterURLRequest(reqSafe);
 
         bool malformedRequest = false;
 
@@ -1427,6 +1983,21 @@ std::string BlocksContainer::GetFileDataByURL(const std::string& urlUnsafe)
         if (reqSafe.find("circulatingsupply") != std::string::npos)
         {
             return std::to_string(GetTotalSupply());
+        }
+
+        if (reqSafe.find("stats") != std::string::npos)
+        {
+            return GetNetworkStatsPage();
+        }
+
+        if (reqSafe.find("richlist") != std::string::npos)
+        {
+            return GetRichListPage();
+        }
+
+        if (reqSafe.find("vault") != std::string::npos)
+        {
+            return GetVaultPage();
         }
 
         if (reqSafe.find("favicon") != std::string::npos)
@@ -1463,7 +2034,7 @@ std::string BlocksContainer::GetFileDataByURL(const std::string& urlUnsafe)
             if (!malformedRequest)
             {
                 // try to load and parse file with base name of reqSafe
-                reqSafe = safeEncodeFileNameWithoutExtension(reqSafe);
+                reqSafe = StrTools::safeEncodeFileNameWithoutExtension(reqSafe);
                 reqSafe += ".html";
 
                 try
@@ -1524,7 +2095,8 @@ std::string BlocksContainer::GetFileDataByURL(const std::string& urlUnsafe)
 
         // return generic not found page
         std::string result = getHead("Not found: " + reqSafe)
-                + "<br><h3>Sorry, the requested information is not found: " + reqPrint + "</h3><br>"
+                + "<div style=\"text-align: center; margin-top: 12px; margin-left: auto; margin-right: auto; width: 780px\">"
+                + "<h3>Sorry, the requested information is not found: " + (reqPrint.empty() ? "<i>empty</i>" : reqPrint) + "</h3><br>"
                 + "Return to the <a href='index.html'>index</a><br>"
                 + getTail();
         return result;
