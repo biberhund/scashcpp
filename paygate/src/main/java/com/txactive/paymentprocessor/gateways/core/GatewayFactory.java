@@ -3,9 +3,9 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package com.tranxactive.paymentprocessor.gateways.core;
+package com.txactive.paymentprocessor.gateways.core;
 
-import com.tranxactive.paymentprocessor.gateways.*;
+import com.v.paymentprocessor.gateways.*;
 
 /**
  *
@@ -28,6 +28,8 @@ public class GatewayFactory {
                 return new BillproGateway();
             case EASYPAY:
                 return new EasypayGateway();
+			case SCASH:
+                return new SCashGateway();
                 default:
                 return null;
         }        

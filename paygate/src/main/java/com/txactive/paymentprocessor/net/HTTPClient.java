@@ -3,9 +3,9 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package com.tranxactive.paymentprocessor.net;
+package com.txactive.paymentprocessor.net;
 
-import com.tranxactive.paymentprocessor.gateways.responses.ErrorResponse;
+import com.txactive.paymentprocessor.gateways.responses.ErrorResponse;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -31,7 +31,7 @@ public class HTTPClient {
      * @return The HTTPResponse
      * @throws java.io.IOException in case of any failure to communicating the
      * server
-     * @see com.tranxactive.paymentprocessor.net.HTTPResponse
+     * @see com.txactive.paymentprocessor.net.HTTPResponse
      */
     public static HTTPResponse httpGet(String url) throws IOException {
 

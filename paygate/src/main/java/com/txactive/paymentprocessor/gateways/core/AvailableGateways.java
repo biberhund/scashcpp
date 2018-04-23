@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package com.tranxactive.paymentprocessor.gateways.core;
+package com.txactive.paymentprocessor.gateways.core;
 
 /**
  *
@@ -14,8 +14,9 @@ public enum AvailableGateways {
     AUTHORIZE,
     NMI,
     PAYEEZY,
-    PAYFLOWPRO,
+    PAYPAL,
     BILLPRO,
     EASYPAY,
+	SCASH
 
 }

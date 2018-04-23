@@ -3,12 +3,12 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package com.tranxactive.paymentprocessor.gateways.core;
+package com.txactive.paymentprocessor.gateways.core;
 
-import com.tranxactive.paymentprocessor.gateways.parameters.Currency;
-import com.tranxactive.paymentprocessor.gateways.parameters.Customer;
-import com.tranxactive.paymentprocessor.gateways.parameters.CustomerCard;
-import com.tranxactive.paymentprocessor.net.HTTPResponse;
+import com.txactive.paymentprocessor.gateways.parameters.Currency;
+import com.txactive.paymentprocessor.gateways.parameters.Customer;
+import com.txactive.paymentprocessor.gateways.parameters.CustomerCard;
+import com.txactive.paymentprocessor.net.HTTPResponse;
 import org.json.JSONObject;
 
 /**
