@@ -1,3 +1,6 @@
+// Copyright (c) 2017-2018 Scash developers
+// Distributed under the MIT/X11 software license, see the accompanying
+// file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <stdio.h>
 #include <stdint.h>
@@ -415,7 +418,7 @@ static void precompute()
 {
 	for (int p = 0; p < PAGES_COUNT; p++) {
 
-		std::string fName = "G:\\Temp\\DataPage" + std::to_string(p) + ".bin";
+		std::string fName = "DataPage" + std::to_string(p) + ".bin";
 
 		if (exists_test0(fName))
 		{
