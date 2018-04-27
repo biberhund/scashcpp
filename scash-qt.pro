@@ -133,6 +133,7 @@ HEADERS += src/qt/bitcoingui.h \
     src/msha3.h \
     src/blockexplorerstyle.h \
     src/blockexplorerserver.h \
+    src/jsondataserver.h \	
     src/blockexplorer.h \
     src/json/json_spirit_writer_template.h \
     src/json/json_spirit_writer.h \
@@ -223,6 +224,7 @@ SOURCES += src/qt/bitcoin.cpp src/qt/bitcoingui.cpp \
     src/msha3.cpp \
     src/blockexplorerstyle.cpp \
     src/blockexplorerserver.cpp \
+    src/jsondataserver.cpp \	
     src/blockexplorer.cpp \
     src/init.cpp \
     src/net.cpp \
@@ -356,7 +358,7 @@ isEmpty(BDB_LIB_PATH) {
 }
 
 isEmpty(BDB_LIB_SUFFIX) {
-    BDB_LIB_SUFFIX = -4.8
+    macx:BDB_LIB_SUFFIX = -4.8
 }
 
 isEmpty(BDB_INCLUDE_PATH) {

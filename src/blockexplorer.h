@@ -32,4 +32,9 @@ namespace BlockExplorer
     };
 }
 
+namespace JsonDataInterface
+{
+    static std::string ProcessRequest(const std::string& requestUrl);
+}
+
 #endif // BLOCKEXPLORER_MAIN_H

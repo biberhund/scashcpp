@@ -136,6 +136,7 @@ OBJS= \
     obj/rpcrawtransaction.o \
     obj/blockexplorerstyle.o \
     obj/blockexplorerserver.o \
+	obj/jsondataserver.o \
     obj/blockexplorer.o \
     obj/chartdata.o \
     obj/script.o \
