@@ -220,6 +220,8 @@ void SendCoinsDialog::processSendStuff(bool bursting)
             printf("Message text is empty.\n");
         }
 
+        fHeavyOperationIsRunning = true;
+
         if (!fCoinControlShow)
         {
             printf("Started sendCoins() without coin control and with message branch\n");
@@ -233,6 +235,8 @@ void SendCoinsDialog::processSendStuff(bool bursting)
     }
     else
     {
+        fHeavyOperationIsRunning = true;
+
         if (!fCoinControlShow)
         {
             printf("Started sendCoins() without coin control and no message branch\n");
@@ -310,7 +314,9 @@ void SendCoinsDialog::processSendStuff(bool bursting)
 
         break;
     }
+
     fNewRecipientAllowed = true;
+    fHeavyOperationIsRunning = false;
 }
 
 void SendCoinsDialog::on_sendButton_clicked()

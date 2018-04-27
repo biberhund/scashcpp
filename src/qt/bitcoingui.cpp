@@ -607,8 +607,6 @@ void BitcoinGUI::setNumBlocks(int count, int nTotalBlocks)
         progressBar->setVisible(false);
     }
 
-    tooltip = tr("Current difficulty is %1.").arg(clientModel->GetDifficulty()) + QString("<br>") + tooltip;
-
     QDateTime lastBlockDate = clientModel->getLastBlockDate();
     int secs = lastBlockDate.secsTo(QDateTime::currentDateTime());
     QString text;
@@ -1083,6 +1081,7 @@ void BitcoinGUI::updateMintingIcon()
             else if (nWeight > 125) nEstimateTime += 3*60*60;
             else if (nWeight > 62) nEstimateTime +=  9*60*60;
             else if (nWeight > 31) nEstimateTime += 24*60*60;
+            else nEstimateTime += 3*24*60*60;
 
             QString text;
             if (nEstimateTime < 60)
@@ -1117,18 +1116,25 @@ uint64 nWeightForBURST = 0;
 
 void BitcoinGUI::updateMintingWeights()
 {
-    // Only update if we have the network's current number of blocks, or weight(s) are zero (fixes lagging GUI)
-    if ((clientModel && clientModel->getNumBlocks() >= clientModel->getNumBlocksOfPeers()) || !nWeight || !nNetworkWeight)
+    if (IsInitialBlockDownload() || fHeavyOperationIsRunning)
+        return;
+
+    // Only update if we have the network's current number of blocks
+    if ((clientModel && clientModel->getNumBlocks() + 4 >= clientModel->getNumBlocksOfPeers()))
     {
         nWeight = 0;
+        bool res = false;
 
         if (pwalletMain)
         {
-            pwalletMain->GetStakeWeight(*pwalletMain, nMinMax, nMinMax, nWeight);
+            res = pwalletMain->GetStakeWeight(*pwalletMain, nMinMax, nMinMax, nWeight);
             nWeightForBURST = nWeight;
         }
 
         nNetworkWeight = GetPoSKernelPS();
+
+        printf("Staking info is updated (res=%i; nWeight=%" PRI64d ", nWeightForBURST=%" PRI64d ", nNetworkWeight=%" PRI64d ")\n",
+               res, nWeight, nWeightForBURST, nNetworkWeight);
     }
 }
  

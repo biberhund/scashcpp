@@ -95,6 +95,7 @@ bool fReopenDebugLog = false;
 bool fWalletLoadWarn = false;
 bool fWalletLoadErr = false;
 int64 fInOutBytes = 0;
+bool fHeavyOperationIsRunning = false;
 
 // Init OpenSSL library multithreading support
 static CCriticalSection** ppmutexOpenSSL;

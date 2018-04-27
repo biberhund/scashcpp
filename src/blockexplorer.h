@@ -30,11 +30,14 @@ namespace BlockExplorer
 
         static const int AutoUpdateTimeMs = 3 * 1000;
     };
+
+    class JsonDataInterface
+    {
+    public:
+        static std::string ProcessRequest(const std::string& requestUrl);
+    };
 }
 
-namespace JsonDataInterface
-{
-    static std::string ProcessRequest(const std::string& requestUrl);
-}
+
 
 #endif // BLOCKEXPLORER_MAIN_H

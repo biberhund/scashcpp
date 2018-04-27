@@ -190,12 +190,21 @@ extern json_spirit::Value validatepubkey(const json_spirit::Array& params, bool 
 extern json_spirit::Value getnewpubkey(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getnetworkhashps(const json_spirit::Array& params, bool fHelp);
 
-extern json_spirit::Value getrawtransaction(const json_spirit::Array& params, bool fHelp); // in rcprawtransaction.cpp
+extern json_spirit::Value getrawtransaction(const json_spirit::Array& params, bool fHelp); // in rpcrawtransaction.cpp
 extern json_spirit::Value listunspent(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value createrawtransaction(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value decoderawtransaction(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value signrawtransaction(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value sendrawtransaction(const json_spirit::Array& params, bool fHelp);
+
+extern json_spirit::Value listnodesRPC(const json_spirit::Array& params, bool fHelp); // in rpcwallet.cpp
+extern json_spirit::Value addnodeRPC(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value disconnectNodeRPC(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value trustNodeRPC(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value untrustNodeRPC(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value banNodeRPC(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value unbanNodeRPC(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value nodeinfoRPC(const json_spirit::Array& params, bool fHelp);
 
 extern json_spirit::Value getblockcount(const json_spirit::Array& params, bool fHelp); // in rpcblockchain.cpp
 extern json_spirit::Value getdifficulty(const json_spirit::Array& params, bool fHelp);

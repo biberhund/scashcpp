@@ -2108,5 +2108,12 @@ std::string BlocksContainer::GetFileDataByURL(const std::string& urlUnsafe)
     }
 }
 
+
+std::string JsonDataInterface::ProcessRequest(const std::string& requestUrl)
+{
+    return requestUrl;
+}
+
+
 }
 

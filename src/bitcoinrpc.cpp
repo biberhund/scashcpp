@@ -212,6 +212,16 @@ static const CRPCCommand vRPCCommands[] =
     { "setgenerate",            &setgenerate,            true,   false },
     { "gethashespersec",        &gethashespersec,        true,   false },
     { "getinfo",                &getinfo,                true,   false },
+
+    { "listnodes",              &listnodesRPC,           true,   false },
+    { "addnode",                &addnodeRPC,             true,   false },
+    { "disconnectnode",         &disconnectNodeRPC,      true,   false },
+    { "trustnode",              &trustNodeRPC,           true,   false },
+    { "untrustnode",            &untrustNodeRPC,         true,   false },
+    { "bannode",                &banNodeRPC,             true,   false },
+    { "unbannode",              &unbanNodeRPC,           true,   false },
+    { "nodeinfo",               &nodeinfoRPC,            true,   false },
+
     { "getmininginfo",          &getmininginfo,          true,   false },
     { "getnewaddress",          &getnewaddress,          true,   false },
     { "getnewpubkey",           &getnewpubkey,           true,   false },

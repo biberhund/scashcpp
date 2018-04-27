@@ -1018,7 +1018,7 @@ recoveryCheckpoint:
 
     if (JsonDataServer::fJsonDataServerEnabled)
     {
-        printf("Json data server enabled (port %i)\n", JsonDataServer::fJsonDataServerEnabled);
+        printf("Json data server enabled (port %i)\n", JsonDataServer::fJsonDataServerPort);
     }
     else
     {
