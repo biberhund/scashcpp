@@ -4,21 +4,21 @@
  * and open the template in the editor.
  
 */
-package com.tranxactive.paymentprocessor.gateways;
+package com.txactive.paymentprocessor.gateways;
 
-import com.tranxactive.paymentprocessor.gateways.core.Gateway;
-import com.tranxactive.paymentprocessor.gateways.parameters.Currency;
-import com.tranxactive.paymentprocessor.gateways.parameters.Customer;
-import com.tranxactive.paymentprocessor.gateways.parameters.CustomerCard;
-import com.tranxactive.paymentprocessor.gateways.parameters.ParamList;
-import com.tranxactive.paymentprocessor.gateways.responses.ErrorResponse;
-import com.tranxactive.paymentprocessor.gateways.responses.PurchaseResponse;
-import com.tranxactive.paymentprocessor.gateways.responses.RebillResponse;
-import com.tranxactive.paymentprocessor.gateways.responses.RefundResponse;
-import com.tranxactive.paymentprocessor.gateways.responses.VoidResponse;
-import com.tranxactive.paymentprocessor.net.HTTPClient;
-import com.tranxactive.paymentprocessor.net.HTTPResponse;
-import com.tranxactive.paymentprocessor.net.XMLHelper;
+import com.txactive.paymentprocessor.gateways.core.Gateway;
+import com.txactive.paymentprocessor.gateways.parameters.Currency;
+import com.txactive.paymentprocessor.gateways.parameters.Customer;
+import com.txactive.paymentprocessor.gateways.parameters.CustomerCard;
+import com.txactive.paymentprocessor.gateways.parameters.ParamList;
+import com.txactive.paymentprocessor.gateways.responses.ErrorResponse;
+import com.txactive.paymentprocessor.gateways.responses.PurchaseResponse;
+import com.txactive.paymentprocessor.gateways.responses.RebillResponse;
+import com.txactive.paymentprocessor.gateways.responses.RefundResponse;
+import com.txactive.paymentprocessor.gateways.responses.VoidResponse;
+import com.txactive.paymentprocessor.net.HTTPClient;
+import com.txactive.paymentprocessor.net.HTTPResponse;
+import com.txactive.paymentprocessor.net.XMLHelper;
 import java.util.Random;
 import org.apache.http.entity.ContentType;
 import org.json.JSONObject;
