@@ -70,6 +70,150 @@ Value getpeerinfo(const Array& params, bool fHelp)
     return ret;
 }
 
+
+Value addnodeRPC(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 1)
+        throw runtime_error(
+            "addnode\n"
+            "Adds specified node as possible one to p2p connection.");
+
+    std::string node = params[0].get_str();
+    bool status = ConnectNode(node, true);
+
+    Object result;
+    result.push_back(Pair("node", node));
+    result.push_back(Pair("operation", "add"));
+    result.push_back(Pair("value", "true"));
+    result.push_back(Pair("status", status));
+    return result;
+}
+
+Value disconnectNodeRPC(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 1)
+        throw runtime_error(
+            "disconnectnode\n"
+            "Closes the p2p connection with specified node.");
+
+    std::string node = params[0].get_str();
+    bool status = ConnectNode(node, false);
+
+    Object result;
+    result.push_back(Pair("node", node));
+    result.push_back(Pair("operation", "add"));
+    result.push_back(Pair("value", "false"));
+    result.push_back(Pair("status", status));
+    return result;
+}
+
+Value trustNodeRPC(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 1)
+        throw runtime_error(
+            "trustnode\n"
+            "Do not reject data from the specified node at any case.");
+
+    std::string node = params[0].get_str();
+    bool status = TrustNode(node, true);
+
+    Object result;
+    result.push_back(Pair("node", node));
+    result.push_back(Pair("operation", "trust"));
+    result.push_back(Pair("value", "true"));
+    result.push_back(Pair("status", status));
+    return result;
+}
+
+Value untrustNodeRPC(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 1)
+        throw runtime_error(
+            "untrustnode\n"
+            "Do not trust specified node anymore.");
+
+    std::string node = params[0].get_str();
+    bool status = TrustNode(node, false);
+
+    Object result;
+    result.push_back(Pair("node", node));
+    result.push_back(Pair("operation", "trust"));
+    result.push_back(Pair("value", "false"));
+    result.push_back(Pair("status", status));
+    return result;
+}
+
+Value banNodeRPC(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 1)
+        throw runtime_error(
+            "bannode\n"
+            "Close connection to the specified node and never accept it anymore.");
+
+    std::string node = params[0].get_str();
+    bool status = BanNode(node, true);
+
+    Object result;
+    result.push_back(Pair("node", node));
+    result.push_back(Pair("operation", "ban"));
+    result.push_back(Pair("value", "true"));
+    result.push_back(Pair("status", status));
+    return result;
+}
+
+Value unbanNodeRPC(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 1)
+        throw runtime_error(
+            "unbannode\n"
+            "Remove the specified node from the ban list.");
+
+    std::string node = params[0].get_str();
+    bool status = BanNode(node, false);
+
+    Object result;
+    result.push_back(Pair("node", node));
+    result.push_back(Pair("operation", "ban"));
+    result.push_back(Pair("value", "false"));
+    result.push_back(Pair("status", status));
+    return result;
+}
+
+Value nodeinfoRPC(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 1)
+        throw runtime_error(
+            "nodeinfo\n"
+            "Get the detailed info on specified node.");
+
+    vector<CNodeStats> vstats;
+    CopyNodeStats(vstats);
+
+    Array ret;
+
+    BOOST_FOREACH(const CNodeStats& stats, vstats) {
+
+        if (stats.addrName.find(params[0].get_str()) != std::string::npos)
+        {
+            Object obj;
+            obj.push_back(Pair("addr", stats.addrName));
+            obj.push_back(Pair("services", strprintf("%08" PRI64x, stats.nServices)));
+            obj.push_back(Pair("lastsend", (boost::int64_t)stats.nLastSend));
+            obj.push_back(Pair("lastrecv", (boost::int64_t)stats.nLastRecv));
+            obj.push_back(Pair("conntime", (boost::int64_t)stats.nTimeConnected));
+            obj.push_back(Pair("version", stats.nVersion));
+            obj.push_back(Pair("subver", stats.strSubVer));
+            obj.push_back(Pair("inbound", stats.fInbound));
+            obj.push_back(Pair("releasetime", (boost::int64_t)stats.nReleaseTime));
+            obj.push_back(Pair("startingheight", stats.nStartingHeight));
+            obj.push_back(Pair("banscore", stats.nMisbehavior));
+            ret.push_back(obj);
+        }
+    }
+
+    return ret;
+}
+
 extern CCriticalSection cs_mapAlerts;
 extern map<uint256, CAlert> mapAlerts;
  

@@ -160,6 +160,9 @@ public:
     int nMisbehavior;
 };
 
+bool BanNode(std::string node, bool ban);
+bool TrustNode(std::string node, bool trust);
+bool ConnectNode(std::string node, bool connect);
 
 /** Information about a peer */
 class CNode

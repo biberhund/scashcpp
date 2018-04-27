@@ -586,6 +586,11 @@ CNode* FindNode(const CService& addr)
     return NULL;
 }
 
+CCriticalSection _cs_customNodes;
+std::vector<std::string> _bannedNodes;
+std::vector<std::string> _trustedNodes;
+std::vector<std::string> _addedNodes;
+
 bool IsManuallyTrusted(const CAddress& addr)
 {
     if (mapArgs.count("-trustnode") > 0)
@@ -603,6 +608,20 @@ bool IsManuallyTrusted(const CAddress& addr)
             }
         }
     }
+
+    {
+        LOCK(_cs_customNodes);
+        for (std::vector<std::string>::iterator it = _trustedNodes.begin(); it != _trustedNodes.end(); it++)
+        {
+            if (addr.ToString().substr(0, it->length()) == *it)
+            {
+                printf("TRUSTED NODE OPERATION %s\n",
+                    addr.ToString().c_str());
+                return true;
+            }
+        }
+    }
+
     return false;
 }
 
@@ -620,7 +639,87 @@ bool IsManuallyBanned(const CAddress& addrConnect)
             }
         }
     }
+
+    {
+        LOCK(_cs_customNodes);
+        for (std::vector<std::string>::iterator it = _bannedNodes.begin(); it != _bannedNodes.end(); it++)
+        {
+            if (addrConnect.ToString().substr(0, it->length()) == *it)
+            {
+                printf("NODE IS BANNED %s\n",
+                    addrConnect.ToString().c_str());
+                return true;
+            }
+        }
+    }
+
     return false;
+}
+
+bool BanNode(std::string node, bool ban)
+{
+    LOCK(_cs_customNodes);
+    if (ban)
+    {
+        _bannedNodes.push_back(node);
+        return true;
+    }
+    else
+    {
+        for (std::vector<std::string>::iterator it = _bannedNodes.begin(); it != _bannedNodes.end(); it++)
+        {
+            if (it->find(node) != std::string::npos)
+            {
+                _bannedNodes.erase(it);
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
+bool TrustNode(std::string node, bool trust)
+{
+    LOCK(_cs_customNodes);
+    if (trust)
+    {
+        _trustedNodes.push_back(node);
+        return true;
+    }
+    else
+    {
+        for (std::vector<std::string>::iterator it = _trustedNodes.begin(); it != _trustedNodes.end(); it++)
+        {
+            if (it->find(node) != std::string::npos)
+            {
+                _trustedNodes.erase(it);
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
+bool ConnectNode(std::string node, bool connect)
+{
+    LOCK(_cs_customNodes);
+    if (connect)
+    {
+        _addedNodes.push_back(node);
+        return true;
+    }
+    else
+    {
+        for (std::vector<std::string>::iterator it = _addedNodes.begin(); it != _addedNodes.end(); it++)
+        {
+            if (it->find(node) != std::string::npos)
+            {
+                _addedNodes.erase(it);
+                return true;
+            }
+        }
+        return false;
+    }
 }
 
 CNode* ConnectNode(CAddress addrConnect, const char *pszDest, int64 nTimeout)

@@ -213,7 +213,6 @@ static const CRPCCommand vRPCCommands[] =
     { "gethashespersec",        &gethashespersec,        true,   false },
     { "getinfo",                &getinfo,                true,   false },
 
-    { "listnodes",              &listnodesRPC,           true,   false },
     { "addnode",                &addnodeRPC,             true,   false },
     { "disconnectnode",         &disconnectNodeRPC,      true,   false },
     { "trustnode",              &trustNodeRPC,           true,   false },

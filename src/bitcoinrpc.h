@@ -198,7 +198,6 @@ extern json_spirit::Value decoderawtransaction(const json_spirit::Array& params,
 extern json_spirit::Value signrawtransaction(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value sendrawtransaction(const json_spirit::Array& params, bool fHelp);
 
-extern json_spirit::Value listnodesRPC(const json_spirit::Array& params, bool fHelp); // in rpcwallet.cpp
 extern json_spirit::Value addnodeRPC(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value disconnectNodeRPC(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value trustNodeRPC(const json_spirit::Array& params, bool fHelp);
