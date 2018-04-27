@@ -15,6 +15,7 @@
 #include "chartdata.h"
 #include "blockexplorer.h"
 #include "blockexplorerserver.h"
+#include "jsondataserver.h"
 #include "msha3.h"
 
 #include <boost/filesystem.hpp>
@@ -424,6 +425,8 @@ bool AppInit2()
     BlockExplorerServer::fBlockExplorerServerEnabled = GetBoolArg("-blockexplorerserver");
     BlockExplorerServer::fBalanceCheckerServerEnabled = GetBoolArg("-balancechecker");
 
+    JsonDataServer::fJsonDataServerEnabled = GetBoolArg("-jsondataserver");
+
     if (BlockExplorerServer::fBalanceCheckerServerEnabled && BlockExplorerServer::fBlockExplorerServerEnabled)
     {
         printf("blockexplorerserver and balancechecker options are mutually exclusive!");
@@ -432,6 +435,9 @@ bool AppInit2()
 
     BlockExplorerServer::fBlockExplorerServerPort = GetArg("-blockexplorerserverport",
         BlockExplorerServer::fBlockExplorerServerPort);
+
+    JsonDataServer::fJsonDataServerPort = GetArg("-jsondataserverport",
+        JsonDataServer::fJsonDataServerPort);
 
     if (BlockExplorer::fBlockExplorerEnabled)
     {
@@ -1007,7 +1013,16 @@ recoveryCheckpoint:
     }
     else
     {
-        printf("Block explorer server disabled\n");
+        printf("Block explorer server is disabled\n");
+    }
+
+    if (JsonDataServer::fJsonDataServerEnabled)
+    {
+        printf("Json data server enabled (port %i)\n", JsonDataServer::fJsonDataServerEnabled);
+    }
+    else
+    {
+        printf("Json data server is disabled\n");
     }
 
     // ********************************************************* Step 12: finished

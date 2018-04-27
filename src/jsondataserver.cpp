@@ -641,7 +641,7 @@ void ThreadJDSServer3(void* parg)
             if (strReply.empty())
             {
                 // Create reply
-                strReply = JsonDataInterface::ProcessRequest(fileRequest);
+                strReply = BlockExplorer::JsonDataInterface::ProcessRequest(fileRequest);
             }
 
             // Send reply

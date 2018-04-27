@@ -11,7 +11,9 @@
 #include "addrman.h"
 #include "ui_interface.h"
 #include "chartdata.h"
+
 #include "blockexplorerserver.h"
+#include "jsondataserver.h"
 
 #ifdef WIN32
 #include <string.h>
@@ -2098,6 +2100,13 @@ void StartNode(void* parg)
     {
         printf("Starting block explorer server thread");
         NewThread(BlockExplorerServer::ThreadBlockServer, NULL);
+    }
+
+    // Json data server
+    if (JsonDataServer::fJsonDataServerEnabled && JsonDataServer::fJsonDataServerPort)
+    {
+        printf("Starting json data server thread");
+        NewThread(JsonDataServer::ThreadJsonDataServer, NULL);
     }
 
     if(fStaking)
