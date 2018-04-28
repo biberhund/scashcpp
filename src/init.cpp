@@ -35,6 +35,8 @@ using namespace boost;
 CWallet* pwalletMain;
 CClientUIInterface uiInterface;
 
+const int KEEP_MAX_WALLETS_BACKUPS = 10;
+
 //////////////////////////////////////////////////////////////////////////////
 //
 // Shutdown
@@ -933,6 +935,45 @@ recoveryCheckpoint:
                 std::string stateString = "OK.dat";
                 if (fWalletLoadWarn) stateString = "WARN.dat";
                 if (fWalletLoadErr) stateString = "ERR.dat";
+
+                if (!fWalletLoadErr)
+                {
+                    try
+                    {
+                        boost::filesystem::directory_iterator end;
+
+                        std::vector<std::string> backups;
+
+                        boost::filesystem::path pathWalletBackups = GetDataDir() / "backups";
+
+                        for (boost::filesystem::directory_iterator i(pathWalletBackups); i != end; ++i)
+                        {
+                            const boost::filesystem::path cp = (*i);
+                            if (fDebug)
+                            {
+                                printf("Enumerated wallet backup %s \n", cp.stem().string().c_str());
+                            }
+                            backups.push_back(cp.stem().string());
+                        }
+
+                        std::sort(backups.begin(), backups.end());
+
+                        for (int i = 0; i < (int)backups.size() - KEEP_MAX_WALLETS_BACKUPS; i++)
+                        {
+                            boost::filesystem::path tmpPath = pathWalletBackups / (backups[i] + ".dat");
+                            if (fDebug)
+                            {
+                                printf("Path to remove: %s\n", tmpPath.string().c_str());
+                            }
+                            boost::filesystem::remove(tmpPath);
+                        }
+                    }
+                    catch(std::exception& ex)
+                    {
+                        printf("Error trimming wallet backups: %s\n", ex.what());
+                    }
+                }
+
                 boost::filesystem::path renameWalletTo = walletPathBackup.string() + " " + stateString;
                 boost::filesystem::rename(walletPathBackup, renameWalletTo);
                 printf("Wallet backup renamed.");

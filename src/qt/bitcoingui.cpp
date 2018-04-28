@@ -1040,6 +1040,7 @@ void BitcoinGUI::showNormalIfMinimized(bool fToggleHidden)
 }
 
 extern bool fBurstMode;
+extern int64 nTargetSpacing;
 
 void BitcoinGUI::updateMintingIcon()
 {
@@ -1071,7 +1072,7 @@ void BitcoinGUI::updateMintingIcon()
     else if (nLastCoinStakeSearchInterval)
     {
         {
-            uint64 nEstimateTimeRaw = nStakeTargetSpacing * nNetworkWeight / nWeight;
+            uint64 nEstimateTimeRaw = 12 * nTargetSpacing * nNetworkWeight / nWeight;
             int nEstimateTime = nEstimateTimeRaw + 3*60;
 
             if (nWeight > 1000) nEstimateTime += 1;

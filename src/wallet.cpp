@@ -1233,7 +1233,10 @@ bool CWallet::SelectCoins(int64 nTargetValue, unsigned int nSpendTime, set<pair<
         return (nValueRet >= nTargetValue);
     }
 
-    printf("Processing without coin control\n");
+    if (fDebug && fDumpAll)
+    {
+        printf("Processing without coin control\n");
+    }
 
     return (SelectCoinsMinConf(nTargetValue, nSpendTime, 1, 6, vCoins, setCoinsRet, nValueRet) ||
             SelectCoinsMinConf(nTargetValue, nSpendTime, 1, 1, vCoins, setCoinsRet, nValueRet) ||
