@@ -102,7 +102,7 @@ string vstrprintf(const char *format, va_list ap)
     char* p = buffer;
     int limit = sizeof(buffer);
     int ret;
-    loop
+    LOOP
     {
         va_list arg_ptr;
         va_copy(arg_ptr, ap);
