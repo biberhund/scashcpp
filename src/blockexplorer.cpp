@@ -2508,7 +2508,69 @@ std::string JsonDataInterface::ProcessRequest(const std::string& requestUrl)
     }
     else if (document == "vault")
     {
-        okToParseParams = true;
+        int realCount = 0;
+        int filteredOut = 0;
+        std::stringstream outs;
+
+        LOCK(g_cs_valut);
+
+        for (size_t u = 0; u < g_vaultDocs.size() && realCount < qCount; u++)
+        {
+            if (!qDocAuthor.empty())
+            {
+                if (!nonStrictMatch(g_vaultDocs[u].author, qDocAuthor))
+                {
+                    filteredOut++;
+                    continue;
+                }
+            }
+
+            if (!qDocName.empty())
+            {
+                if (!nonStrictMatch(g_vaultDocs[u].name, qDocName))
+                {
+                    filteredOut++;
+                    continue;
+                }
+            }
+
+            if (!qDocHash.empty())
+            {
+                if (!nonStrictMatch(g_vaultDocs[u].hash, qDocHash))
+                {
+                    filteredOut++;
+                    continue;
+                }
+            }
+
+            if (!qDocVersion.empty())
+            {
+                if (!nonStrictMatch(g_vaultDocs[u].version, qDocVersion))
+                {
+                    filteredOut++;
+                    continue;
+                }
+            }
+
+            if (realCount > 0) outs << ", \n"; else outs << "\n";
+
+            outs << "{\n";
+            outs << " \"date\": \"" << jsonSafeEncode(g_vaultDocs[u].msgTime) << "\", \n";
+            outs << " \"hash\": \"" << jsonSafeEncode(g_vaultDocs[u].hash) << "\", \n";
+            outs << " \"from\": \"" << jsonSafeEncode(g_vaultDocs[u].from) << "\", \n";
+            outs << " \"name\": \"" << jsonSafeEncode(g_vaultDocs[u].name) << "\", \n";
+            outs << " \"author\": \"" << jsonSafeEncode(g_vaultDocs[u].author) << "\", \n";
+            outs << " \"version\": \"" << jsonSafeEncode(g_vaultDocs[u].version) << "\", \n";
+            outs << " \"comment\": \"" << jsonSafeEncode(g_vaultDocs[u].comment) << "\" \n";
+            outs << "}";
+
+            realCount++;
+        }
+
+        return (std::string)("{ \"type\": \"vault\", \"count\": \"") + std::to_string(realCount)
+                + "\", \"filteredOut\": \"" + std::to_string(filteredOut)
+                + "\", \"requested\": \"" + std::to_string(qCount)
+                + "\", \"documents\": [" + outs.str() + "] }";
     }
 
     return requestUrl;
