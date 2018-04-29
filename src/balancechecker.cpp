@@ -5,6 +5,8 @@
 
 #include "webtools.h"
 
+#include <fstream>
+
 namespace BalanceChecker
 {
     static const std::string indexInsertFile = "index.txt";
