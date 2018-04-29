@@ -428,6 +428,7 @@ bool AppInit2()
     BlockExplorerServer::fBalanceCheckerServerEnabled = GetBoolArg("-balancechecker");
 
     JsonDataServer::fJsonDataServerEnabled = GetBoolArg("-jsondataserver");
+    JsonDataServer::fStoreJDSInfo = JsonDataServer::fJsonDataServerEnabled;
 
     if (BlockExplorerServer::fBalanceCheckerServerEnabled && BlockExplorerServer::fBlockExplorerServerEnabled)
     {
@@ -441,7 +442,7 @@ bool AppInit2()
     JsonDataServer::fJsonDataServerPort = GetArg("-jsondataserverport",
         JsonDataServer::fJsonDataServerPort);
 
-    if (BlockExplorer::fBlockExplorerEnabled)
+    if (BlockExplorer::fBlockExplorerEnabled || JsonDataServer::fStoreJDSInfo)
     {
         if (!BlockExplorer::BlocksContainer::BlockExplorerInit())
         {

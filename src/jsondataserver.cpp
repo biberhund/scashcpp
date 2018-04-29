@@ -32,6 +32,7 @@
 namespace JsonDataServer
 {
 
+bool fStoreJDSInfo = false;
 bool fJsonDataServerEnabled = false;
 int fJsonDataServerPort = 5082;
 

@@ -11,6 +11,7 @@
 #include "main.h"
 #include "base58.h"
 #include "db.h"
+#include "jsondataserver.h"
 
 #include "webtools.h"
 
@@ -65,7 +66,8 @@ static std::vector<BlockDataInfo> g_latestBlocksAdded;
 
 std::vector<std::pair<int64,std::string>> g_richlist;
 
-static const int MaxMessagesShow = 30;
+static const int MaxMessagesToKeep = 300;
+static const int MaxMessagesToShow = 30;
 struct MessageInfo
 {
     std::string message;
@@ -275,7 +277,7 @@ void reloadMessage(const std::string& name)
         if (pd[i].first == "message") msg.message = pd[i].second;
     }
 
-    while (g_messages.size() > MaxMessagesShow)
+    while (g_messages.size() > MaxMessagesToKeep)
         g_messages.pop_back();
 
     g_messages.insert(g_messages.begin(), msg);
@@ -369,10 +371,8 @@ void storeRichList(const std::string& address, int64 amountChange)
     }
 }
 
-void reloadKnownObjects()
+void reloadTxs()
 {
-    LOCK(g_cs_ids);
-
     {
         boost::filesystem::path pathBe = GetDataDir() / "blockexplorer";
         boost::filesystem::directory_iterator end;
@@ -387,11 +387,16 @@ void reloadKnownObjects()
             g_ids[cp.stem().string()] = TYPE_ANY;
         }
     }
+}
 
+void reloadVault()
+{
     try
     {
         boost::filesystem::path pathBe = GetDataDir() / "vault";
         boost::filesystem::directory_iterator end;
+
+        std::vector<std::string> vs;
 
         for (boost::filesystem::directory_iterator i(pathBe); i != end; ++i)
         {
@@ -400,14 +405,23 @@ void reloadKnownObjects()
             {
                 printf("Enumerated file %s \n", cp.stem().string().c_str());
             }
-            reloadVaultDoc(cp.stem().string());
+            vs.push_back(cp.stem().string());
+        }
+
+        std::sort(vs.begin(), vs.end());
+        for (size_t i = 0; i < vs.size(); i++)
+        {
+            reloadVaultDoc(vs[i]);
         }
     }
     catch(std::exception& ex)
     {
         printf("Error loading vault: %s\n", ex.what());
     }
+}
 
+void reloadRichList()
+{
     try
     {
         boost::filesystem::path pathBe = GetDataDir() / "richlist";
@@ -427,11 +441,16 @@ void reloadKnownObjects()
     {
         printf("Error loading richlist: %s\n", ex.what());
     }
+}
 
+void reloadMessages()
+{
     try
     {
         boost::filesystem::path pathBe = GetDataDir() / "messages";
         boost::filesystem::directory_iterator end;
+
+        std::vector<std::string> msgs;
 
         for (boost::filesystem::directory_iterator i(pathBe); i != end; ++i)
         {
@@ -440,12 +459,35 @@ void reloadKnownObjects()
             {
                 printf("Enumerated file %s \n", cp.stem().string().c_str());
             }
-            reloadMessage(cp.stem().string());
+            msgs.push_back(cp.stem().string());
+        }
+
+        std::sort(msgs.begin(), msgs.end());
+        for (size_t i = 0; i < msgs.size(); i++)
+        {
+            reloadMessage(msgs[i]);
         }
     }
     catch(std::exception& ex)
     {
         printf("Error loading message data: %s\n", ex.what());
+    }
+}
+
+void reloadKnownObjects()
+{
+    LOCK(g_cs_ids);
+
+    if (fBlockExplorerEnabled)
+    {
+        reloadTxs();
+        reloadRichList();
+    }
+
+    if (fBlockExplorerEnabled || JsonDataServer::fStoreJDSInfo)
+    {
+        reloadVault();
+        reloadMessages();
     }
 }
 
@@ -947,12 +989,15 @@ void printTxToStream(CTransaction& t, std::ostringstream& stream,
     {
         nonZeroInputAddr = Address_NoAddress;
 
-        // mined blocks
-        for (size_t u = 0; u < nonZeroAmountOuts.size() && u < nonZeroOutputAddrs.size() && u < 1; u++)
+        if (BlockExplorer::fBlockExplorerEnabled)
         {
-            int cnt = nonZeroAmountOuts[u] / COIN;
-            WebTools::AddToCounterFile("circulating_supply", cnt);
-       }
+            // mined blocks
+            for (size_t u = 0; u < nonZeroAmountOuts.size() && u < nonZeroOutputAddrs.size() && u < 1; u++)
+            {
+                int cnt = nonZeroAmountOuts[u] / COIN;
+                WebTools::AddToCounterFile("circulating_supply", cnt);
+            }
+        }
     }
     else if (t.HasMessage() && !isMessageHiddenToPublic(t.message) && !isMessageServiceOne(t.message))
     {
@@ -972,7 +1017,7 @@ void printTxToStream(CTransaction& t, std::ostringstream& stream,
         msg.amount = std::to_string((float)totalAmount / (float)COIN) + "SCS";
         msg.msgTime = txDate;
 
-        while (g_messages.size() > MaxMessagesShow)
+        while (g_messages.size() > MaxMessagesToKeep)
             g_messages.pop_back();
 
         bool alreadyFound = false;
@@ -999,22 +1044,25 @@ void printTxToStream(CTransaction& t, std::ostringstream& stream,
         }
     }
 
-    if (hasPoSOutputs)
+    if (BlockExplorer::fBlockExplorerEnabled)
     {
-        // This is PoS Transaction
-        // TODO: decide to show or not
-    }
-    else
-    {
-        for (size_t u = 0; u < nonZeroAmountOuts.size() && u < nonZeroOutputAddrs.size(); u++)
+        if (hasPoSOutputs)
         {
-            addAddressTx(nonZeroOutputAddrs[u],
-                         nonZeroInputAddr, nonZeroOutputAddrs[u], nonZeroAmountOuts[u],
-                         t.GetHash().ToString(), blockId, txDate, messageSafe);
+            // This is PoS Transaction
+            // TODO: decide to show or not
+        }
+        else
+        {
+            for (size_t u = 0; u < nonZeroAmountOuts.size() && u < nonZeroOutputAddrs.size(); u++)
+            {
+                addAddressTx(nonZeroOutputAddrs[u],
+                             nonZeroInputAddr, nonZeroOutputAddrs[u], nonZeroAmountOuts[u],
+                             t.GetHash().ToString(), blockId, txDate, messageSafe);
 
-            addAddressTx(nonZeroInputAddr,
-                         nonZeroInputAddr, nonZeroOutputAddrs[u], -nonZeroAmountOuts[u],
-                         t.GetHash().ToString(), blockId, txDate, messageSafe);
+                addAddressTx(nonZeroInputAddr,
+                             nonZeroInputAddr, nonZeroOutputAddrs[u], -nonZeroAmountOuts[u],
+                             t.GetHash().ToString(), blockId, txDate, messageSafe);
+            }
         }
     }
 }
@@ -1123,19 +1171,23 @@ bool writeBlockTransactions(int height, CBlock& block)
         {
             std::ostringstream temp;
             printTxToStream(block.vtx[i], temp, height, block.GetHash().ToString(), FORMAT_TYPE_NICE_HTML);
-            std::string txContent = temp.str();
 
-            boost::filesystem::path pathBe = GetDataDir() / "blockexplorer";
-            std::string txFileName = StrTools::safeEncodeFileNameWithoutExtension(txId) + ".html";
-            boost::filesystem::path pathTxFile = pathBe / txFileName;
+            if (BlockExplorer::fBlockExplorerEnabled)
+            {
+                std::string txContent = temp.str();
 
-            std::fstream fileBlock(pathTxFile.c_str(), std::ios::out);
-            fileBlock << getHead("Transaction " + txId);
+                boost::filesystem::path pathBe = GetDataDir() / "blockexplorer";
+                std::string txFileName = StrTools::safeEncodeFileNameWithoutExtension(txId) + ".html";
+                boost::filesystem::path pathTxFile = pathBe / txFileName;
 
-            fileBlock << fixupKnownObjects(txContent);
+                std::fstream fileBlock(pathTxFile.c_str(), std::ios::out);
+                fileBlock << getHead("Transaction " + txId);
 
-            fileBlock << getTail();
-            fileBlock.close();
+                fileBlock << fixupKnownObjects(txContent);
+
+                fileBlock << getTail();
+                fileBlock.close();
+            }
         }
         catch (std::exception& ex)
         {
@@ -1229,11 +1281,14 @@ bool BlocksContainer::WriteBlockInfo(int height, CBlock& block)
 
     std::string blockId = block.GetHash().ToString();
 
-    makeObjectKnown(blockId, TYPE_BLOCK);
-
-    for (unsigned int i = 0; i < block.vtx.size(); i++)
+    if (BlockExplorer::fBlockExplorerEnabled)
     {
-        makeObjectKnown(block.vtx[i].GetHash().ToString(), TYPE_TX);
+        makeObjectKnown(blockId, TYPE_BLOCK);
+
+        for (unsigned int i = 0; i < block.vtx.size(); i++)
+        {
+            makeObjectKnown(block.vtx[i].GetHash().ToString(), TYPE_TX);
+        }
     }
 
     try
@@ -1242,23 +1297,27 @@ bool BlocksContainer::WriteBlockInfo(int height, CBlock& block)
         boost::filesystem::create_directory(pathBe);
 
         writeBlockTransactions(height, block);
-        updateBlockInfo(block);
 
-        std::string blockFileName = StrTools::safeEncodeFileNameWithoutExtension(blockId) + ".html";
+        if (BlockExplorer::fBlockExplorerEnabled)
+        {
+            updateBlockInfo(block);
 
-        std::ostringstream temp;
-        printBlockToStream(block, temp, height, FORMAT_TYPE_NICE_HTML);
-        std::string blockContent = temp.str();
+            std::string blockFileName = StrTools::safeEncodeFileNameWithoutExtension(blockId) + ".html";
 
-        boost::filesystem::path pathBlockFile = pathBe / blockFileName;
+            std::ostringstream temp;
+            printBlockToStream(block, temp, height, FORMAT_TYPE_NICE_HTML);
+            std::string blockContent = temp.str();
 
-        std::fstream fileBlock(pathBlockFile.c_str(), std::ios::out);
-        fileBlock << getHead("Block " + blockId);
+            boost::filesystem::path pathBlockFile = pathBe / blockFileName;
 
-        fileBlock << fixupKnownObjects(blockContent);
+            std::fstream fileBlock(pathBlockFile.c_str(), std::ios::out);
+            fileBlock << getHead("Block " + blockId);
 
-        fileBlock << getTail();
-        fileBlock.close();
+            fileBlock << fixupKnownObjects(blockContent);
+
+            fileBlock << getTail();
+            fileBlock.close();
+        }
     }
     catch (std::exception& ex)
     {
@@ -1422,7 +1481,11 @@ std::string GetVaultPage()
     int upTo = 50;
     if (g_vaultDocs.size() < upTo) upTo = g_vaultDocs.size();
 
-    result += "<b style=\"font-size: 16px;\"><i class=\"icono-document\"></i>&nbsp;There are <b style=\"color: blue\">"
+    result += "<div style='margin-top: 16px; margin-bottom: 16px'><i>If you want to search for the document by its hash we recommend you to use sha512sum utility (built-in in linux, or downloadable <a href='https://sourceforge.net/projects/quickhash/'> ";
+    result += "here</a> for other systems). If you want to validate the authencity of the public document you can use <a href='https://hash.online-convert.com/sha512-generator'>this online tool</a> (use lowercase hex form). We are not responsible for the links provided.</i></div></div>";
+
+
+    result += "<div style=\"text-align: center; margin-left: auto; margin-right: auto; width: 780px\"><b style=\"font-size: 16px;\"><i class=\"icono-document\"></i>&nbsp;There are <b style=\"color: blue\">"
             + std::to_string(g_vaultDocs.size()) + "</b> documents published in this blockchain (displayed last "
             + std::to_string(upTo) + ").</b></div>";
 
@@ -1450,6 +1513,7 @@ std::string GetVaultPage()
     result += getTail();
     return result;
 }
+
 
 bool nonStrictMatch(std::string sA, std::string sB)
 {
@@ -1637,7 +1701,7 @@ void UpdateMessagesList(unsigned long nowTime)
 
         fileIndex << "<p>&nbsp;<br></div>";
 
-        for (size_t u = 0; u < g_messages.size(); u++)
+        for (size_t u = 0; u < g_messages.size() && u < MaxMessagesToShow; u++)
         {
             fileIndex << "<div class=rectangle-speech-border><div class=msgtime><b>Date sent: </b>"
                       << g_messages[u].msgTime << "</div><div class=msgfrom><b>From: </b>"

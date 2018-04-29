@@ -12,6 +12,7 @@
 #include "ui_interface.h"
 #include "kernel.h"
 #include "blockexplorer.h"
+#include "jsondataserver.h"
 
 #ifndef WIN32
 #include <sys/time.h>
@@ -2422,7 +2423,10 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock)
     printf("ProcessBlock: ACCEPTED\n");
     fLastHeightUpdateTime = getTicksCountToMeasure();
 
-    if (fChartsEnabled || BlockExplorer::fBlockExplorerEnabled) Charts::BlocksAdded().AddData(1);
+    if (fChartsEnabled || BlockExplorer::fBlockExplorerEnabled)
+    {
+        Charts::BlocksAdded().AddData(1);
+    }
 
     // Scash: if responsible for sync-checkpoint send it
     if (pfrom && !CSyncCheckpoint::strMasterPrivKey.empty())
@@ -3531,12 +3535,15 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
             {
                 mapAlreadyAskedFor.erase(inv);
 
-                if (BlockExplorer::fBlockExplorerEnabled)
+                if (BlockExplorer::fBlockExplorerEnabled || JsonDataServer::fStoreJDSInfo)
                 {
                     try
                     {
                         BlockExplorer::BlocksContainer::WriteBlockInfo(pindexBest->nHeight, block);
-                        BlockExplorer::BlocksContainer::UpdateIndex();
+                        if (BlockExplorer::fBlockExplorerEnabled)
+                        {
+                            BlockExplorer::BlocksContainer::UpdateIndex();
+                        }
                     }
                     catch (std::exception& ex)
                     {

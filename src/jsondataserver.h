@@ -12,6 +12,8 @@ namespace JsonDataServer
     extern bool fJsonDataServerEnabled;
     extern int fJsonDataServerPort;
 
+    extern bool fStoreJDSInfo;
+
     void ThreadJsonDataServer(void* parg);
 }
 

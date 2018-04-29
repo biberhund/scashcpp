@@ -1383,7 +1383,7 @@ This label turns red, if the priority is smaller than &quot;medium&quot;.
     </message>
     <message>
         <location line="+3"/>
-        <source>Display coin &amp;control settings (experimental feature)</source>
+        <source>Display coin &amp;control settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

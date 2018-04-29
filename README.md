@@ -1,4 +1,4 @@
-Scash (SCS) Release v1.2.3
+Scash (SCS) Release v1.2.4
 
 -----------------------------
 Scash is a peer-to-peer Proof of Stake Velocity digital currency with an initial Proof of Work mining
@@ -13,7 +13,7 @@ Total coins: 476,918 SCS (PoW) + annual 8% PoS intereset
 
 Algorithm: x13 + mSHA3
 
-Initial PoW block reward: 8 SCS -> 2 SCS
+PoW block reward: 2 SCS -> 0.5 SCS
 
 PoS annual rate: 8%
 
@@ -36,3 +36,6 @@ Mined blocks confirmations: 60
 Default P2P connection port: 35334
 
 Default RPC port: 35333
+
+Default JDS port: 5082
+

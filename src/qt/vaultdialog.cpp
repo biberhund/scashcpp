@@ -289,6 +289,8 @@ bool VaultDialog::sendVaultData(QString data)
 
             break;
     }
+
+    return true;
 }
 
 void VaultDialog::on_publishButton_clicked()
