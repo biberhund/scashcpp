@@ -19,7 +19,8 @@
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
 #include <boost/filesystem/convenience.hpp>
-#include <boost/algorithm/string/replace.hpp>
+#include <boost/algorithm/string.hpp>
+#include <boost/lexical_cast.hpp>
 
 namespace BlockExplorer
 {
@@ -2172,9 +2173,344 @@ std::string BlocksContainer::GetFileDataByURL(const std::string& urlUnsafe)
     }
 }
 
+std::string retWrongRequest(const std::string& req)
+{
+    return (std::string)("{ \"type\": \"error request\", \"request\": \"") + req + "\" }";
+}
+
+std::string retWrongDocument(const std::string& req)
+{
+    return (std::string)("{ \"type\": \"wrong document\", \"request\": \"") + req + "\" }";
+}
+
+std::string retDocument(const std::string& doc, const std::string& params)
+{
+    return (std::string)("{ \"type\": \"document\", \"doc\": \"") + doc + "\", \"params\": \"" + params + "\" }";
+}
+
+const int MIN_SAFE_LEN = 4;
+
+bool safeParseBool(const std::string& str, bool defaultValue = false)
+{
+    if (str == "1" || str == "true") return true;
+    if (str == "0" || str == "false") return false;
+    return defaultValue;
+}
+
+int safeParseInt(const std::string& str, int defaultValue = 0)
+{
+    try
+    {
+        int n = boost::lexical_cast<int>(str);
+        return n;
+    }
+    catch (boost::bad_lexical_cast)
+    {
+        return defaultValue;
+    }
+}
+
+std::string jsonSafeEncode(const std::string& str)
+{
+    std::string res = str;
+    boost::replace_all(res, "\\\"", "");
+    boost::replace_all(res, "\"", "\\\"");
+    boost::replace_all(res, "\n", "<br>");
+    return res;
+}
+
+bool containsLinks(const std::string& msg)
+{
+    if (msg.find("<a ") != std::string::npos)
+        return true;
+    return false;
+}
+
+bool containsImages(const std::string& msg)
+{
+    if (msg.find("<img ") != std::string::npos)
+        return true;
+    return false;
+}
 
 std::string JsonDataInterface::ProcessRequest(const std::string& requestUrl)
 {
+    std::string parsedRequest = requestUrl;
+
+    // Do not allow request > 256 chars
+    if (parsedRequest.length() > 256) parsedRequest = parsedRequest.substr(0, 255);
+
+    if (parsedRequest.length() <= MIN_SAFE_LEN)
+    {
+        return retWrongRequest(parsedRequest);
+    }
+
+    size_t slashPos = parsedRequest.find('/');
+    if (slashPos == std::string::npos || slashPos >= parsedRequest.size() - MIN_SAFE_LEN)
+    {
+        return retWrongRequest(parsedRequest);
+    }
+
+    parsedRequest = parsedRequest.substr(slashPos + 1);
+
+    size_t qmPos = parsedRequest.find('?');
+    if (qmPos == std::string::npos || qmPos == 0)
+    {
+        return retWrongRequest(parsedRequest);
+    }
+
+    std::string document = parsedRequest.substr(0, qmPos);
+    std::string params = parsedRequest.substr(qmPos + 1);
+
+    if (params.length() == 0 || document.length() == 0)
+    {
+        return retWrongRequest(parsedRequest);
+    }
+
+    bool okToParseParams = false;
+
+    if (document == "messages")
+    {
+        okToParseParams = true;
+    }
+    else if (document == "vault")
+    {
+        okToParseParams = true;
+    }
+    else
+    {
+        return retWrongDocument(document);
+    }
+
+    std::string qAddressDst = "";
+    std::string qAddressSrc = "";
+
+    std::string qDocHash = "";
+    std::string qDocAuthor = "";
+    std::string qDocVersion = "";
+    std::string qDocName = "";
+
+    int qMaxChars = 0;
+    int qCount = MaxMessagesToShow;
+    int qMinAmount = 0;
+    bool qAllowImages = true;
+    bool qAllowLinks = true;
+    bool qOnlyTrustedSig = false;
+    int qMaxXSize = 0;
+    int qMaxYSize = 0;
+
+    std::stringstream debugOut;
+
+    if (okToParseParams)
+    {
+        std::vector<std::string> paramsPairs;
+        boost::split(paramsPairs, params, boost::is_any_of("&"));
+
+        for (size_t u = 0; u < paramsPairs.size(); u++)
+        {
+            size_t eqPos = paramsPairs[u].find('=');
+            if (eqPos == std::string::npos || eqPos == 0)
+            {
+                return retWrongRequest(parsedRequest);
+            }
+
+            std::string key = paramsPairs[u].substr(0, eqPos);
+            std::string value = paramsPairs[u].substr(eqPos + 1);
+
+            if (fDebug)
+            {
+                debugOut << "key: " << key << "; value: " << value << "<br>\n";
+            }
+
+            if (key.length() == 0 || value.length() == 0)
+            {
+                return retWrongRequest(parsedRequest);
+            }
+
+            if (key == "count")
+            {
+                qCount = safeParseInt(value, MaxMessagesToShow);
+            }
+            else if (key == "maxchars")
+            {
+                qMaxChars = safeParseInt(value);
+            }
+            else if (key == "minamount")
+            {
+                qMinAmount = safeParseInt(value);
+            }
+            else if (key == "maxxsize")
+            {
+                qMaxXSize = safeParseInt(value);
+            }
+            else if (key == "maxysize")
+            {
+                qMaxYSize = safeParseInt(value);
+            }
+            else if (key == "allowimages")
+            {
+                qAllowImages = safeParseBool(value);
+            }
+            else if (key == "allowlinks")
+            {
+                qAllowLinks = safeParseBool(value);
+            }
+            else if (key == "trustedsig")
+            {
+                qOnlyTrustedSig = safeParseBool(value);
+            }
+            else if (key == "srcaddr")
+            {
+                qAddressSrc = value;
+            }
+            else if (key == "dstaddr")
+            {
+                qAddressDst = value;
+            }
+            else if (key == "dochash")
+            {
+                qDocHash = value;
+            }
+            else if (key == "docauthor")
+            {
+                qDocAuthor = value;
+            }
+            else if (key == "docname")
+            {
+                qDocName = value;
+            }
+            else if (key == "docversion")
+            {
+                qDocVersion = value;
+            }
+        }
+    }
+
+    if (fDebug)
+    {
+        debugOut << "qAddressDst = " << qAddressDst << "<br>\n"
+          << "qAddressSrc = " << qAddressSrc << "<br>\n"
+          << "qDocHash = " << qDocHash << "<br>\n"
+          << "qDocAuthor = " << qDocAuthor << "<br>\n"
+          << "qDocVersion = " << qDocVersion << "<br>\n"
+          << "qDocName = " << qDocName << "<br>\n"
+          << "qCount = " << qCount << "<br>\n"
+          << "qMinAmount = " << qMinAmount << "<br>\n"
+          << "qAllowImages = " << qAllowImages << "<br>\n"
+          << "qAllowLinks = " << qAllowLinks << "<br>\n"
+          << "qOnlyTrustedSig = " << qOnlyTrustedSig << "<br>\n"
+          << "qMaxXSize = " << qMaxXSize << "<br>\n"
+          << "qMaxYSize = " << qMaxYSize << "<br>\n";
+    }
+
+    if (document == "messages")
+    {
+        int realCount = 0;
+        int filteredOut = 0;
+        std::stringstream outs;
+
+        LOCK(g_cs_be_fatlock);
+
+        for (size_t u = 0; u < g_messages.size() && realCount < qCount; u++)
+        {
+            if (!qAllowImages || !qAllowLinks)
+            {
+                std::string data = allowExtLinks(g_messages[u].message);
+                std::transform(data.begin(), data.end(), data.begin(), ::tolower);
+                if (!qAllowImages && containsImages(data)) { filteredOut++; continue; }
+                if (!qAllowLinks && containsLinks(data)) { filteredOut++; continue; }
+            }
+
+            if (!qAddressDst.empty())
+            {
+                if (g_messages[u].to.find(qAddressDst) == std::string::npos)
+                {
+                    filteredOut++;
+                    continue;
+                }
+            }
+
+            if (!qAddressSrc.empty())
+            {
+                if (g_messages[u].from.find(qAddressSrc) == std::string::npos)
+                {
+                    filteredOut++;
+                    continue;
+                }
+            }
+
+            if (qMinAmount >= 1)
+            {
+                std::string tmp = g_messages[u].amount;
+                boost::replace_all(tmp, "SCS", "");
+
+                try
+                {
+                    float t = boost::lexical_cast<float>(tmp);
+                    if (t < qMinAmount)
+                    {
+                        filteredOut++;
+                        continue;
+                    }
+                }
+                catch (boost::bad_lexical_cast)
+                {
+                    filteredOut++;
+                    continue;
+                }
+            }
+
+            if (qMaxChars >= 1)
+            {
+                if (g_messages[u].message.length() > qMaxChars)
+                {
+                    filteredOut++;
+                    continue;
+                }
+            }
+
+            if (qMaxXSize >= 1 || qMaxYSize >= 1)
+            {
+                int chars = g_messages[u].message.length();
+                int xsize = (chars > 142) ? 832 : (chars * 6);
+                int ysize = ((chars / 142) + 1) * 12;
+
+                if (qMaxXSize && xsize > qMaxXSize)
+                {
+                    filteredOut++;
+                    continue;
+                }
+
+                if (qMaxYSize && ysize > qMaxYSize)
+                {
+                    filteredOut++;
+                    continue;
+                }
+            }
+
+            if (realCount > 0) outs << ", \n"; else outs << "\n";
+
+            outs << "{\n";
+            outs << " \"date\": \"" << jsonSafeEncode(g_messages[u].msgTime) << "\", \n";
+            outs << " \"from\": \"" << jsonSafeEncode(g_messages[u].from) << "\", \n";
+            outs << " \"to\": \"" << jsonSafeEncode(g_messages[u].to) << "\", \n";
+            outs << " \"amount\": \"" << jsonSafeEncode(g_messages[u].amount) << "\", \n";
+            outs << " \"message\": \"" << jsonSafeEncode(g_messages[u].message) << "\" \n";
+            outs << "}";
+
+            realCount++;
+        }
+
+        return (std::string)("{ \"type\": \"messages\", \"count\": \"") + std::to_string(realCount)
+                + "\", \"filteredOut\": \"" + std::to_string(filteredOut)
+                + "\", \"requested\": \"" + std::to_string(qCount)
+                + "\", \"messages\": [" + outs.str() + "] }";
+    }
+    else if (document == "vault")
+    {
+        okToParseParams = true;
+    }
+
     return requestUrl;
 }
 
