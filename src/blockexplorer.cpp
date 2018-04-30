@@ -599,7 +599,22 @@ bool BlocksContainer::BlockExplorerInit()
     return true;
 }
 
-std::string fixupKnownObjects(const std::string& src)
+std::string getTrustedSigByAddrHTML(const std::string& address)
+{
+    LOCK(g_cs_trustedSigs);
+    for (size_t u = 0; u < g_trustedSigs.size(); u++)
+    {
+        if (address == g_trustedSigs[u].address)
+        {
+            return "<i style='color: green;'>" + g_trustedSigs[u].name +
+                    "</i> <i style='color: blue; font-size: 80%;'> ("
+                    + g_trustedSigs[u].hash_msha3 + ")</i>";
+        }
+    }
+    return "";
+}
+
+std::string fixupKnownObjects(const std::string& src, bool fixupTrustedSigs = false)
 {
     std::string result = "";
 
@@ -632,11 +647,31 @@ std::string fixupKnownObjects(const std::string& src)
                     && ((u+1 >= tokenized.size()) ||
                             (tokenized[u+1] != ".")))
             {
+                std::string token = tokenized[u];
+
+                if (fixupTrustedSigs && token.length() == 34)
+                {
+                    std::string temp = getTrustedSigByAddrHTML(token);
+                    if (temp != "")
+                        token += " " + temp;
+                }
+
                 result += "<a href=\"" + tokenized[u] + ".html\">"
-                        + tokenized[u] + "</a>";
+                        + token + "</a>";
             }
             else
-                result += tokenized[u];
+            {
+                std::string token = tokenized[u];
+
+                if (fixupTrustedSigs && token.length() == 34)
+                {
+                    std::string temp = getTrustedSigByAddrHTML(token);
+                    if (temp != "")
+                        token += " " + temp;
+                }
+
+                result += token;
+            }
         }
     }
 
@@ -1012,12 +1047,12 @@ bool isSigAllowed(const std::string& data)
             return false;
     }
 
-    return true;
+    return data.length() < 64;
 }
 
 std::string keepSigAllowed(const std::string& data)
 {
-    return trimWhitespaces(data);
+    return simpleHTMLSafeDisplayFilter(trimWhitespaces(data));
 }
 
 void printTxToStream(CTransaction& t, std::ostringstream& stream,
@@ -1813,7 +1848,7 @@ std::string SearchDocPage(const std::string &doc)
         std::stringstream fileIndex;
         fileIndex << "<div class=rectangle-speech-border><div class=msgmsg><b>Date published: </b>"
                   << matched[u].msgTime << "</div><div class=msgmsg><b>From wallet address: </b>"
-                  << fixupKnownObjects(matched[u].from)
+                  << fixupKnownObjects(matched[u].from, true)
                   << (matchedByAuthor ? "" : " <b style='color: blue'>First publisher!</b>")
                   << "</div><div class=msgmsg><b>Author name: </b>"
                   << simpleHTMLSafeDisplayFilter(matched[u].author)
@@ -1833,7 +1868,7 @@ std::string SearchDocPage(const std::string &doc)
         std::stringstream fileIndex;
         fileIndex << "<div class=rectangle-speech-border><div class=msgmsg><b>Date published: </b>"
                   << matched[u].msgTime << "</div><div class=msgmsg><b>From wallet address: </b>"
-                  << fixupKnownObjects(matched[u].from) << "</div><div class=msgmsg><b>Author name: </b>"
+                  << fixupKnownObjects(matched[u].from, true) << "</div><div class=msgmsg><b>Author name: </b>"
                   << simpleHTMLSafeDisplayFilter(matched[u].author)
                   << (matched[u].author.empty() || matched[u].author == originalAuthor ? ""
                             : " <b style='color: purple'>This is not the original author</b>")
@@ -1886,7 +1921,7 @@ void UpdateMessagesList(unsigned long nowTime)
         {
             fileIndex << "<div class=rectangle-speech-border><div class=msgtime><b>Date sent: </b>"
                       << g_messages[u].msgTime << "</div><div class=msgfrom><b>From: </b>"
-                      << fixupKnownObjects(g_messages[u].from) << "</div><div class=msgto><b>To: </b>"
+                      << fixupKnownObjects(g_messages[u].from, true) << "</div><div class=msgto><b>To: </b>"
                       << fixupKnownObjects(g_messages[u].to) << "</div><div class=msgamount><b>Amount: </b>"
                       << g_messages[u].amount << "</div><div class=msgmsg><b>Message: </b>"
                       << allowExtLinks(g_messages[u].message) << "</div></div><div class=spacer1>&nbsp;</div>";
@@ -2413,6 +2448,19 @@ bool containsImages(const std::string& msg)
     return false;
 }
 
+std::string getTrustedSigByAddr(const std::string& address)
+{
+    LOCK(g_cs_trustedSigs);
+    for (size_t u = 0; u < g_trustedSigs.size(); u++)
+    {
+        if (address == g_trustedSigs[u].address)
+        {
+            return g_trustedSigs[u].name + " (" + g_trustedSigs[u].hash_msha3 + ")";
+        }
+    }
+    return "";
+}
+
 std::string JsonDataInterface::ProcessRequest(const std::string& requestUrl)
 {
     std::string parsedRequest = requestUrl;
@@ -2480,6 +2528,7 @@ std::string JsonDataInterface::ProcessRequest(const std::string& requestUrl)
     bool qAllowImages = true;
     bool qAllowLinks = true;
     bool qOnlyTrustedSig = false;
+    bool qTrustedSigDisplay = false;
     int qMaxXSize = 0;
     int qMaxYSize = 0;
 
@@ -2541,7 +2590,13 @@ std::string JsonDataInterface::ProcessRequest(const std::string& requestUrl)
             }
             else if (key == "trustedsig")
             {
+                qTrustedSigDisplay = safeParseBool(value);
+            }
+            else if (key == "trustedsigonly")
+            {
                 qOnlyTrustedSig = safeParseBool(value);
+                if (qOnlyTrustedSig)
+                    qTrustedSigDisplay = true;
             }
             else if (key == "srcaddr")
             {
@@ -2582,6 +2637,7 @@ std::string JsonDataInterface::ProcessRequest(const std::string& requestUrl)
           << "qMinAmount = " << qMinAmount << "<br>\n"
           << "qAllowImages = " << qAllowImages << "<br>\n"
           << "qAllowLinks = " << qAllowLinks << "<br>\n"
+          << "qTrustedSigDisplay = " << qTrustedSigDisplay << "<br>\n"
           << "qOnlyTrustedSig = " << qOnlyTrustedSig << "<br>\n"
           << "qMaxXSize = " << qMaxXSize << "<br>\n"
           << "qMaxYSize = " << qMaxYSize << "<br>\n";
@@ -2597,6 +2653,22 @@ std::string JsonDataInterface::ProcessRequest(const std::string& requestUrl)
 
         for (size_t u = 0; u < g_messages.size() && realCount < qCount; u++)
         {
+            std::string trSig = "";
+
+            if (qTrustedSigDisplay)
+            {
+                trSig = getTrustedSigByAddr(g_messages[u].from);
+            }
+
+            if (qOnlyTrustedSig)
+            {
+                if (trSig.empty())
+                {
+                    filteredOut++;
+                    continue;
+                }
+            }
+
             if (!qAllowImages || !qAllowLinks)
             {
                 std::string data = allowExtLinks(g_messages[u].message);
@@ -2679,6 +2751,7 @@ std::string JsonDataInterface::ProcessRequest(const std::string& requestUrl)
             outs << " \"from\": \"" << jsonSafeEncode(g_messages[u].from) << "\", \n";
             outs << " \"to\": \"" << jsonSafeEncode(g_messages[u].to) << "\", \n";
             outs << " \"amount\": \"" << jsonSafeEncode(g_messages[u].amount) << "\", \n";
+            outs << " \"trustedSig\": \"" << jsonSafeEncode(trSig) << "\", \n";
             outs << " \"message\": \"" << jsonSafeEncode(g_messages[u].message) << "\" \n";
             outs << "}";
 
@@ -2700,6 +2773,22 @@ std::string JsonDataInterface::ProcessRequest(const std::string& requestUrl)
 
         for (size_t u = 0; u < g_vaultDocs.size() && realCount < qCount; u++)
         {
+            std::string trSig = "";
+
+            if (qTrustedSigDisplay)
+            {
+                trSig = getTrustedSigByAddr(g_vaultDocs[u].from);
+            }
+
+            if (qOnlyTrustedSig)
+            {
+                if (trSig.empty())
+                {
+                    filteredOut++;
+                    continue;
+                }
+            }
+
             if (!qDocAuthor.empty())
             {
                 if (!nonStrictMatch(g_vaultDocs[u].author, qDocAuthor))
@@ -2745,6 +2834,7 @@ std::string JsonDataInterface::ProcessRequest(const std::string& requestUrl)
             outs << " \"name\": \"" << jsonSafeEncode(g_vaultDocs[u].name) << "\", \n";
             outs << " \"author\": \"" << jsonSafeEncode(g_vaultDocs[u].author) << "\", \n";
             outs << " \"version\": \"" << jsonSafeEncode(g_vaultDocs[u].version) << "\", \n";
+            outs << " \"trustedSig\": \"" << jsonSafeEncode(trSig) << "\", \n";
             outs << " \"comment\": \"" << jsonSafeEncode(g_vaultDocs[u].comment) << "\" \n";
             outs << "}";
 
