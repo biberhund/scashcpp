@@ -12,6 +12,7 @@
 #include "base58.h"
 #include "db.h"
 #include "jsondataserver.h"
+#include "msha3.h"
 
 #include "webtools.h"
 
@@ -77,9 +78,17 @@ struct MessageInfo
     std::string amount;
     std::string msgTime;
     std::string blockId;
+
+    std::string toStringDump()
+    {
+        return blockId + from + to;
+    }
 };
 
 static std::vector<MessageInfo> g_messages;
+
+static const int MaxMessageDumpsToKeep = 100;
+static std::vector<std::string> g_msgDumps;
 
 
 struct VaultDocumentInfo
@@ -96,12 +105,29 @@ struct VaultDocumentInfo
 
     std::string toStringDump()
     {
-        return blockId + from + to + msgTime + hash + name + version + author + comment;
+        return blockId + from + to + hash + name + version + author + comment;
     }
 };
 
 std::vector<VaultDocumentInfo> g_vaultDocs;
 static CCriticalSection g_cs_valut;
+
+struct TrustedSigInfo
+{
+    std::string address;
+    std::string name;
+    std::string msgTime;
+    std::string hash_msha3;
+
+    std::string toStringDump()
+    {
+        return address + name + hash_msha3;
+    }
+};
+
+const int MaxSigsToKeepInMemory = 500;
+std::vector<TrustedSigInfo> g_trustedSigs;
+static CCriticalSection g_cs_trustedSigs;
 
 typedef std::vector<std::pair<std::string, std::string>> TParsedData;
 
@@ -284,8 +310,34 @@ void reloadMessage(const std::string& name)
     g_messages.insert(g_messages.begin(), msg);
 }
 
+void reloadTrustedSig(const std::string& name)
+{
+    LOCK(g_cs_trustedSigs);
+
+    TrustedSigInfo info;
+
+    std::string loaded = WebTools::readWebTemplateData("trustedsigs", name + ".html");
+
+    TParsedData pd = ParseTextData(loaded);
+
+    for (size_t i = 0; i < pd.size(); i++)
+    {
+        if (pd[i].first == "date") info.msgTime = pd[i].second;
+        if (pd[i].first == "from") info.address = pd[i].second;
+        if (pd[i].first == "hash") info.hash_msha3 = pd[i].second;
+        if (pd[i].first == "name") info.name = pd[i].second;
+    }
+
+    while (g_trustedSigs.size() > MaxSigsToKeepInMemory)
+        g_trustedSigs.pop_back();
+
+    g_trustedSigs.insert(g_trustedSigs.begin(), info);
+}
+
 void reloadVaultDoc(const std::string& name)
 {
+    LOCK(g_cs_valut);
+
     VaultDocumentInfo msg;
 
     std::string loaded = WebTools::readWebTemplateData("vault", name + ".html");
@@ -475,6 +527,37 @@ void reloadMessages()
     }
 }
 
+void reloadTrustedSigs()
+{
+    try
+    {
+        boost::filesystem::path pathBe = GetDataDir() / "trustedsigs";
+        boost::filesystem::directory_iterator end;
+
+        std::vector<std::string> msgs;
+
+        for (boost::filesystem::directory_iterator i(pathBe); i != end; ++i)
+        {
+            const boost::filesystem::path cp = (*i);
+            if (fDebug && fDumpAll)
+            {
+                printf("Enumerated file %s \n", cp.stem().string().c_str());
+            }
+            msgs.push_back(cp.stem().string());
+        }
+
+        std::sort(msgs.begin(), msgs.end());
+        for (size_t i = 0; i < msgs.size(); i++)
+        {
+            reloadTrustedSig(msgs[i]);
+        }
+    }
+    catch(std::exception& ex)
+    {
+        printf("Error loading trustedsigs data: %s\n", ex.what());
+    }
+}
+
 void reloadKnownObjects()
 {
     LOCK(g_cs_ids);
@@ -487,8 +570,9 @@ void reloadKnownObjects()
 
     if (fBlockExplorerEnabled || JsonDataServer::fStoreJDSInfo)
     {
+        reloadTrustedSigs();
         reloadVault();
-        reloadMessages();
+        reloadMessages();        
     }
 }
 
@@ -735,6 +819,13 @@ bool isMessageVaultOne(const std::string& source)
     return source.find("%VAULT") == 0;
 }
 
+const std::string ServiceTrustedSigPrefix = "%SERVICE TRUSTEDSIG ";
+
+bool isTrustedSigOne(const std::string& source)
+{
+    return source.find(ServiceTrustedSigPrefix) == 0;
+}
+
 bool isSafeExtLink(const std::string& src)
 {
     if (src.length() < 10 || src.length() > 80) return false;
@@ -871,6 +962,64 @@ void storeMessageData(const MessageInfo& msg)
     }
 }
 
+void storeTrustedSigData(const TrustedSigInfo& info)
+{
+    try
+    {
+        std::string docName = std::to_string(TimeTools::getNowTime()) + "-" + std::to_string(IncreasingId++);
+
+        {
+            boost::filesystem::path pathBe = GetDataDir() / "trustedsigs";
+            boost::filesystem::create_directory(pathBe);
+
+            std::string blockFileName = docName + ".html";
+
+            boost::filesystem::path pathBlockFile = pathBe / blockFileName;
+
+            std::fstream fileBlock(pathBlockFile.c_str(), std::ios::out);
+            fileBlock << "DATE: " << info.msgTime << "\n";
+            fileBlock << "FROM: " << info.address << "\n";
+            fileBlock << "NAME: " << info.name << "\n";
+            fileBlock << "HASH: " << info.hash_msha3 << "\n";
+        }
+
+        reloadTrustedSig(docName);
+    }
+    catch (std::exception &ex)
+    {
+        printf("error while storing trustedsig: %s", ex.what());
+    }
+}
+
+std::string trimWhitespaces(const std::string& str)
+{
+    size_t first = str.find_first_not_of(' ');
+    if (std::string::npos == first)
+    {
+        return str;
+    }
+    size_t last = str.find_last_not_of(' ');
+    return str.substr(first, (last - first + 1));
+}
+
+bool isSigAllowed(const std::string& data)
+{
+    if (data.length() < 3) return false;
+
+    for (size_t u = 0; u < data.length(); u++)
+    {
+        if (data[u] < 32 || data[u] >= 127)
+            return false;
+    }
+
+    return true;
+}
+
+std::string keepSigAllowed(const std::string& data)
+{
+    return trimWhitespaces(data);
+}
+
 void printTxToStream(CTransaction& t, std::ostringstream& stream,
                      int height,
                      const std::string& blockId,
@@ -1000,48 +1149,79 @@ void printTxToStream(CTransaction& t, std::ostringstream& stream,
             }
         }
     }
-    else if (t.HasMessage() && !isMessageHiddenToPublic(t.message) && !isMessageServiceOne(t.message))
+    else if (t.HasMessage())
     {
-        MessageInfo msg;
-        msg.from =  nonZeroInputAddr;
-        msg.message = simpleHTMLSafeDisplayFilter(t.message);
-        msg.to = "";
-        msg.blockId = blockId;
-
-        int64 totalAmount = 0;
-        for (size_t u = 0; u < nonZeroAmountOuts.size() && u < nonZeroOutputAddrs.size(); u++)
+        try
         {
-            totalAmount += nonZeroAmountOuts[u];
-            msg.to += nonZeroOutputAddrs[u] + " ";
-        }
+            MessageInfo msg;
+            msg.from =  nonZeroInputAddr;
+            msg.message = simpleHTMLSafeDisplayFilter(t.message);
+            msg.to = "";
+            msg.blockId = blockId;
 
-        msg.amount = std::to_string((float)totalAmount / (float)COIN) + "SCS";
-        msg.msgTime = txDate;
-
-        while (g_messages.size() > MaxMessagesToKeep)
-            g_messages.pop_back();
-
-        bool alreadyFound = false;
-        for (size_t i = 0; i < g_messages.size(); i++)
-        {
-            if (msg.from == g_messages[i].from && msg.blockId == g_messages[i].blockId)
+            int64 totalAmount = 0;
+            for (size_t u = 0; u < nonZeroAmountOuts.size() && u < nonZeroOutputAddrs.size(); u++)
             {
-                alreadyFound = true;
-                break;
+                totalAmount += nonZeroAmountOuts[u];
+                msg.to += nonZeroOutputAddrs[u] + " ";
+            }
+
+            msg.amount = std::to_string((float)totalAmount / (float)COIN) + "SCS";
+            msg.msgTime = txDate;
+
+            while (g_messages.size() > MaxMessagesToKeep)
+                g_messages.pop_back();
+
+            bool alreadyFound = false;
+
+            std::string dump = msg.toStringDump();
+            for (size_t i = 0; i < g_msgDumps.size(); i++)
+            {
+                if (g_msgDumps[i] == dump)
+                {
+                    alreadyFound = true;
+                    break;
+                }
+            }
+
+            if (!alreadyFound)
+            {
+                while (g_msgDumps.size() > MaxMessageDumpsToKeep)
+                    g_msgDumps.pop_back();
+                g_msgDumps.insert(g_msgDumps.begin(), dump);
+
+                if (isTrustedSigOne(t.message))
+                {
+                    if (t.message.length() > ServiceTrustedSigPrefix.length() + 1)
+                    {
+                        TrustedSigInfo info;
+                        info.msgTime = msg.msgTime;
+                        info.address = msg.from;
+                        info.name = keepSigAllowed(t.message.substr(ServiceTrustedSigPrefix.length()));
+                        if (isSigAllowed(info.name))
+                        {
+                            info.hash_msha3 = mSHA3::msha3_String(info.address + ":" + info.name, 8);
+                            storeTrustedSigData(info);
+                        }
+                    }
+                }
+                if (isMessageVaultOne(t.message))
+                {
+                    storeVaultEntry(msg);
+                }
+                else
+                {
+                    if (!isMessageHiddenToPublic(t.message) && !isMessageServiceOne(t.message))
+                    {
+                        g_messages.insert(g_messages.begin(), msg);
+                        storeMessageData(msg);
+                    }
+                }
             }
         }
-
-        if (!alreadyFound)
+        catch (std::exception& ex)
         {
-            if (isMessageVaultOne(t.message))
-            {
-                storeVaultEntry(msg);
-            }
-            else
-            {
-                g_messages.insert(g_messages.begin(), msg);
-                storeMessageData(msg);
-            }
+            printf("Exception while processing message data: %s\n", ex.what());
         }
     }
 
@@ -2277,6 +2457,10 @@ std::string JsonDataInterface::ProcessRequest(const std::string& requestUrl)
     {
         okToParseParams = true;
     }
+    else if (document == "trustedsigs")
+    {
+        okToParseParams = true;
+    }
     else
     {
         return retWrongDocument(document);
@@ -2568,6 +2752,60 @@ std::string JsonDataInterface::ProcessRequest(const std::string& requestUrl)
         }
 
         return (std::string)("{ \"type\": \"vault\", \"count\": \"") + std::to_string(realCount)
+                + "\", \"filteredOut\": \"" + std::to_string(filteredOut)
+                + "\", \"requested\": \"" + std::to_string(qCount)
+                + "\", \"documents\": [" + outs.str() + "] }";
+    }
+    else if (document == "trustedsigs")
+    {
+        int realCount = 0;
+        int filteredOut = 0;
+        std::stringstream outs;
+
+        LOCK(g_cs_trustedSigs);
+
+        for (size_t u = 0; u < g_trustedSigs.size() && realCount < qCount; u++)
+        {
+            if (!qAddressSrc.empty())
+            {
+                if (g_trustedSigs[u].address.find(qAddressSrc) == std::string::npos)
+                {
+                    filteredOut++;
+                    continue;
+                }
+            }
+
+            if (!qDocHash.empty())
+            {
+                if (!nonStrictMatch(g_trustedSigs[u].hash_msha3, qDocHash))
+                {
+                    filteredOut++;
+                    continue;
+                }
+            }
+
+            if (!qDocName.empty())
+            {
+                if (!nonStrictMatch(g_trustedSigs[u].name, qDocName))
+                {
+                    filteredOut++;
+                    continue;
+                }
+            }
+
+            if (realCount > 0) outs << ", \n"; else outs << "\n";
+
+            outs << "{\n";
+            outs << " \"date\": \"" << jsonSafeEncode(g_trustedSigs[u].msgTime) << "\", \n";
+            outs << " \"hash\": \"" << jsonSafeEncode(g_trustedSigs[u].hash_msha3) << "\", \n";
+            outs << " \"address\": \"" << jsonSafeEncode(g_trustedSigs[u].address) << "\", \n";
+            outs << " \"name\": \"" << jsonSafeEncode(g_trustedSigs[u].name) << "\" \n";
+            outs << "}";
+
+            realCount++;
+        }
+
+        return (std::string)("{ \"type\": \"trustedsigs\", \"count\": \"") + std::to_string(realCount)
                 + "\", \"filteredOut\": \"" + std::to_string(filteredOut)
                 + "\", \"requested\": \"" + std::to_string(qCount)
                 + "\", \"documents\": [" + outs.str() + "] }";

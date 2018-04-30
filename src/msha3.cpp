@@ -362,11 +362,19 @@ static uint64 sha3UnMem64(uint64 s) {
 	return v;
 }
 
+uint64* page0_data = NULL;
+
 static uint64 sha3Mem64(uint64 s) {
 	Sha3MemCalls++;
 
-	if (s < PAGES_COUNT * PAGE_GRANULARITY) {
-		PrecomputeHit++;
+    if (s < PAGES_COUNT * PAGE_GRANULARITY && page0_data) {
+
+        PrecomputeHit++;
+        if (s < PAGE_GRANULARITY)
+        {
+            return page0_data[s];
+        }
+
 		return PrecomputedTable[s / PAGE_GRANULARITY][s % PAGE_GRANULARITY];
 	}
 
@@ -392,8 +400,6 @@ inline bool exists_test0(const std::string& name) {
 	std::ifstream f(name.c_str());
 	return f.good();
 }
-
-uint64* page0_data = NULL;
 
 bool mSHA3Db::IsMSHA3PageDatabaseValid(const std::string& fileName)
 {
@@ -493,6 +499,16 @@ void InitPrecomputedTable(uint64 pagesCount)
     for (size_t i = 0; i < PAGES_COUNT; i++)
         PrecomputedTable[i] = new uint64[PAGE_GRANULARITY];
     precompute();
+}
+
+std::string msha3_String(const std::string& src, int reduceTo)
+{
+    sha3_context c;
+    const uint8_t *hash;
+    msha3_Init512(&c);
+    msha3_Update(&c, src.c_str(), src.length(), true);
+    hash = (const uint8_t*)msha3_Finalize(&c, true);
+    return toHex(hash, reduceTo);
 }
 
 #ifdef MSHA3_TESTING

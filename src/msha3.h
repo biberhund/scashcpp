@@ -5,9 +5,8 @@
 #ifndef _MSHA3_H_
 #define _MSHA3_H_ 1
 
+#include <string>
 #include "util.h"
-
-// #define MSHA3_TESTING
 
 namespace mSHA3 {
     void InitPrecomputedTable(uint64 pagesCount);
@@ -26,6 +25,10 @@ namespace mSHA3 {
      * Returns resulting hash buffer.
      */
     void const *msha3_Finalize(void *priv, bool extendedVersion = false);
+
+    /* Calculate msha3 reduced string hash
+     */
+    std::string msha3_String(const std::string& src, int reduceTo = 32);
 
 #ifdef MSHA3_TESTING
     namespace testing {
