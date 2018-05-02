@@ -656,7 +656,7 @@
         "RemovePreviousVersions" = "11:FALSE"
         "DetectNewerInstalledVersion" = "11:TRUE"
         "InstallAllUsers" = "11:FALSE"
-        "ProductVersion" = "8:1.2.1"
+        "ProductVersion" = "8:1.2.4"
         "Manufacturer" = "8:Scash developers"
         "ARPHELPTELEPHONE" = "8:"
         "ARPHELPLINK" = "8:"
