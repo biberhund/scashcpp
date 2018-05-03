@@ -422,8 +422,6 @@ void BitcoinGUI::setClientModel(ClientModel *clientModel)
     if(clientModel)
     {
 
-
-
         // Keep up to date with client
         setNumConnections(clientModel->getNumConnections());
         connect(clientModel, SIGNAL(numConnectionsChanged(int)), this, SLOT(setNumConnections(int)));
@@ -644,8 +642,12 @@ void BitcoinGUI::setNumBlocks(int count, int nTotalBlocks)
     else
     {
         tooltip = tr("Catching up...") + QString("<br>") + tooltip;
+#ifdef Q_OS_MAC
+        labelBlocksIcon->setPixmap(QIcon(":/icons/notsyncedtx").pixmap(STATUSBAR_ICONSIZE, STATUSBAR_ICONSIZE));
+#else
         labelBlocksIcon->setMovie(syncIconMovie);
         syncIconMovie->start();
+#endif
 
         overviewPage->showOutOfSyncWarning(true);
     }

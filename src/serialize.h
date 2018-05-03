@@ -824,7 +824,7 @@ public:
             vch.insert(it, first, last);
     }
 
-#if !defined(_MSC_VER) && !defined(Q_OS_MAC)
+#if !defined(_MSC_VER) && !defined(MAC_OSX)
 void insert(iterator it, std::vector<char>::const_iterator first, std::vector<char>::const_iterator last)
     {
         assert(last - first >= 0);
